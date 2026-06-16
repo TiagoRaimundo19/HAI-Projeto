@@ -6,11 +6,48 @@ export function TeacherLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // 1. Estado para guardar a mensagem de erro da BD
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulação de login - redireciona para configuração
-    navigate("/teacher/setup");
+    setError(null); // Limpa erros anteriores ao submeter outra vez
+    
+    try {
+      const response = await fetch("http://localhost:5000/api/professores/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+
+     const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.erro || "Erro ao efetuar login");
+        return;
+      }
+
+      localStorage.setItem("teacherId", data.professor.id);
+      
+      console.log("Sucesso:", data.configurado);
+      
+      // LOGICA DE REDIRECIONAMENTO INTELIGENTE:
+      if (data.configurado) {
+        // Se já configurou o perfil antes, vai direto para a página main (Dashboard)
+        navigate("/teacher");
+      } else {
+        // Se for conta nova ou incompleta, vai para o setup
+        navigate("/teacher/setup");
+      } 
+    } catch (error) {
+      console.error("Erro ao ligar ao servidor:", error);
+      setError("Não foi possível ligar ao servidor. Garante que o backend está ativo!");
+    }
   };
 
   return (
@@ -64,21 +101,7 @@ export function TeacherLogin() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-[#717182] cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-[#e9ebef] text-[#ff6b35] focus:ring-[#ff6b35]"
-                />
-                Lembrar-me
-              </label>
-              <button
-                type="button"
-                className="text-[#ff6b35] hover:text-[#ff5722] transition-colors"
-              >
-                Recuperar palavra-passe
-              </button>
-            </div>
+            
 
             <button
               type="submit"
@@ -86,21 +109,21 @@ export function TeacherLogin() {
             >
               Entrar como Professor
             </button>
+
+            {/* 3. O aviso bonito em vermelho caso o estado 'error' tenha algum texto */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-center animate-fade-in">
+                <p className="text-sm font-medium text-red-600">⚠️ {error}</p>
+              </div>
+            )}
           </form>
 
-          <div className="mt-6 pt-6 border-t border-[#e9ebef] text-center">
-            <p className="text-[#717182] text-sm">
-              Não tem conta de professor?{" "}
-              <button className="text-[#ff6b35] hover:text-[#ff5722] transition-colors">
-                Solicitar acesso
-              </button>
-            </p>
-          </div>
+          
         </div>
 
         <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-xl p-4">
           <p className="text-white/80 text-sm text-center">
-            🔒 Acesso seguro com autenticação institucional
+            🔒 Acesso seguro com autenticação institutional
           </p>
         </div>
       </div>

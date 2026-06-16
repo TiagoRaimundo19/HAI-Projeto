@@ -7,6 +7,8 @@ export function TeacherSetup() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
+  // 1. Estado para gerir erros no setup
+  const [error, setError] = useState<string | null>(null);
 
   const availableSubjects = [
     { id: "matematica", name: "Matemática", icon: "∑" },
@@ -31,9 +33,46 @@ export function TeacherSetup() {
     );
   };
 
-  const handleComplete = () => {
-    // Simulação de configuração completa
-    navigate("/teacher");
+  // 2. Função alterada para enviar os dados reais para o MongoDB
+  const handleComplete = async () => {
+    setError(null);
+    const teacherId = localStorage.getItem("teacherId");
+
+    if (!teacherId) {
+      setError("ID do professor não encontrado. Por favor, volte a fazer login.");
+      return;
+    }
+
+    try {
+      // Faz o pedido PUT usando o ID do professor guardado no login
+      const response = await fetch(`http://localhost:5000/api/professores/configurar/${teacherId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: name,
+          instituicao: school,
+          disciplinas: selectedSubjects,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.erro || "Erro ao salvar a configuração.");
+        return;
+      }
+
+      console.log("Perfil configurado com sucesso:", data.mensagem);
+      
+      // Se tudo correu bem, avança para o Dashboard principal do professor
+      navigate("/teacher");
+
+    } catch (err) {
+      console.error("Erro ao ligar ao servidor:", err);
+      setError("Não foi possível ligar ao servidor. Verifique se o backend está ativo.");
+    }
   };
 
   return (
@@ -114,6 +153,13 @@ export function TeacherSetup() {
               </p>
             )}
           </div>
+
+          {/* 3. Bloco visual de aviso caso haja algum erro no setup */}
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+              <p className="text-sm font-medium text-red-600">⚠️ {error}</p>
+            </div>
+          )}
 
           <div className="flex justify-between items-center pt-6 border-t border-[#e9ebef]">
             <button
