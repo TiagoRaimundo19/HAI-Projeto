@@ -23,10 +23,20 @@ const ProfessorSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // --- NOVOS CAMPOS DINÂMICOS ---
+  anosEscolares: {
+    type: [String], // Ex: ['10º Ano', '12º Ano']
+    default: []
+  },
+  turmas: {
+    type: [String], // Ex: ['Turma A', 'Turma C', 'Turma Engenharia'] (Sem limites!)
+    default: []
+  },
+  // ------------------------------
   criadoEm: {
     type: Date,
     default: Date.now
   }
 });
 
-module.exports = mongoose.model('Professor', ProfessorSchema);
+module.exports = mongoose.model('Professor', ProfessorSchema, 'professors');

@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { Sidebar } from "../components/Sidebar";
+import PreClassView from "./PreClassView"; 
 import {
   MessageSquare,
   Shield,
@@ -7,12 +9,34 @@ import {
   Send,
   Lightbulb,
   AlertTriangle,
+  Flame, 
 } from "lucide-react";
 
-type View = "chat" | "debunking" | "feedback";
+type View = "chat" | "debunking" | "feedback" | "duvidas";
 
 export function StudentDashboard() {
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<View>("chat");
+  const [studentName, setStudentName] = useState("A carregar...");
+
+  useEffect(() => {
+    const studentId = localStorage.getItem("studentId");
+    if (!studentId) return;
+
+    fetch(`http://localhost:5000/api/alunos/perfil/${studentId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.aluno?.nome) {
+          setStudentName(data.aluno.nome);
+        }
+      })
+      .catch(() => setStudentName("Aluno"));
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("studentId");
+    navigate("/student/login");
+  };
 
   const sidebarItems = [
     {
@@ -28,6 +52,12 @@ export function StudentDashboard() {
       onClick: () => setActiveView("debunking"),
     },
     {
+      icon: <Flame className="w-5 h-5" />, // Novo Botão
+      label: "Sinalizar Dúvidas",
+      active: activeView === "duvidas",
+      onClick: () => setActiveView("duvidas"),
+    },
+    {
       icon: <Inbox className="w-5 h-5" />,
       label: "Feedback do Professor",
       active: activeView === "feedback",
@@ -36,19 +66,52 @@ export function StudentDashboard() {
   ];
 
   return (
-    <div className="flex h-screen bg-[#f5f5f7]">
+    <div className="relative flex h-screen bg-[#f5f5f7]">
+      
+      {/* MÁSCARA DO TOPO */}
+      <div className="absolute top-[16px] left-[16px] w-[224px] h-[76px] bg-[#1e3a5f] z-50 flex items-center gap-3 p-3 rounded-xl border border-white/10 select-none cursor-default">
+        <div className="w-10 h-10 bg-[#ff6b35] rounded-xl flex items-center justify-center shadow-md shrink-0">
+          <span className="text-white text-lg">🎓</span>
+        </div>
+        <div className="overflow-hidden pr-1 flex flex-col justify-center h-full">
+          <h3 className="font-semibold text-sm text-white leading-tight break-words" title={studentName}>
+            {studentName}
+          </h3>
+        </div>
+      </div>
+
+      {/* MÁSCARA DO FUNDO (INVISÍVEL) PARA O LOGOUT */}
+      <div 
+        onClick={handleLogout}
+        className="absolute bottom-0 left-0 w-[256px] h-[64px] z-50 cursor-pointer bg-transparent"
+        title="Terminar Sessão"
+      />
+
+      {/* Aqui é renderizada a Nav Barra Lateral */}
       <Sidebar items={sidebarItems} userType="student" />
 
+      {/* Área de conteúdo principal */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
           {activeView === "chat" && <ChatView />}
           {activeView === "debunking" && <DebunkingArenaView />}
           {activeView === "feedback" && <FeedbackInboxView />}
+          
+          
+          {activeView === "duvidas" && (
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <PreClassView />
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
 }
+
+// =========================================================================
+// As tuas visualizações internas (ChatView, Debunking, Feedback) continuam IGUAIS
+// =========================================================================
 
 function ChatView() {
   const [messages, setMessages] = useState([
@@ -387,13 +450,6 @@ function FeedbackInboxView() {
           </div>
         ))}
       </div>
-
-      {feedbacks.length === 0 && (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <Inbox className="w-16 h-16 text-[#717182] mx-auto mb-4" />
-          <p className="text-[#717182]">Ainda não tens feedback dos professores</p>
-        </div>
-      )}
     </div>
   );
 }

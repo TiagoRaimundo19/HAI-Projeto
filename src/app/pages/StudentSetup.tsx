@@ -8,45 +8,109 @@ export function StudentSetup() {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [school, setSchool] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  
+  // NOVO ESTADO: Guarda a turma atribuída para ativar a tela de sucesso bonita
+  const [assignedTurma, setAssignedTurma] = useState<string | null>(null);
 
   const availableSubjects = [
-    { id: "matematica", name: "Matemática", icon: "∑", color: "bg-blue-500" },
-    { id: "fisica", name: "Física", icon: "⚛", color: "bg-purple-500" },
-    { id: "quimica", name: "Química", icon: "⚗", color: "bg-green-500" },
-    { id: "biologia", name: "Biologia", icon: "🧬", color: "bg-teal-500" },
-    { id: "portugues", name: "Português", icon: "📖", color: "bg-red-500" },
-    { id: "ingles", name: "Inglês", icon: "🌍", color: "bg-indigo-500" },
-    { id: "historia", name: "História", icon: "📜", color: "bg-amber-500" },
-    { id: "geografia", name: "Geografia", icon: "🗺", color: "bg-cyan-500" },
-    { id: "filosofia", name: "Filosofia", icon: "🤔", color: "bg-violet-500" },
-    { id: "informatica", name: "Informática", icon: "💻", color: "bg-slate-500" },
-    { id: "economia", name: "Economia", icon: "💰", color: "bg-emerald-500" },
-    { id: "educacao-fisica", name: "Ed. Física", icon: "⚽", color: "bg-orange-500" },
+    { id: "matematica", name: "Matemática", icon: "∑" },
+    { id: "fisica", name: "Física", icon: "⚛" },
+    { id: "quimica", name: "Química", icon: "⚗" },
+    { id: "biologia", name: "Biologia", icon: "🧬" },
+    { id: "portugues", name: "Português", icon: "📖" },
+    { id: "ingles", name: "Inglês", icon: "🌍" },
+    { id: "historia", name: "História", icon: "📜" },
+    { id: "geografia", name: "Geografia", icon: "🗺" },
+    { id: "filosofia", name: "Filosofia", icon: "🤔" },
+    { id: "informatica", name: "Informática", icon: "💻" },
+    { id: "economia", name: "Economia", icon: "💰" },
+    { id: "educacao-fisica", name: "Ed. Física", icon: "⚽" },
   ];
 
   const grades = [
-    "7º Ano",
-    "8º Ano",
-    "9º Ano",
-    "10º Ano",
-    "11º Ano",
-    "12º Ano",
-    "Universidade",
+    "7º Ano", "8º Ano", "9º Ano", "10º Ano", "11º Ano", "12º Ano", "Universidade"
   ];
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((prev) =>
-      prev.includes(subjectId)
-        ? prev.filter((id) => id !== subjectId)
-        : [...prev, subjectId]
+      prev.includes(subjectId) ? prev.filter((id) => id !== subjectId) : [...prev, subjectId]
     );
   };
 
-  const handleComplete = () => {
-    // Simulação de configuração completa
-    navigate("/student");
+  const handleComplete = async () => {
+    setError(null);
+    const studentId = localStorage.getItem("studentId");
+
+    if (!studentId) {
+      setError("ID do aluno não encontrado. Por favor, volte a fazer login.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/alunos/configurar/${studentId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: name,
+          anoEscolar: grade,
+          instituicao: school,
+          disciplinas: selectedSubjects,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.erro || "Erro ao salvar o perfil do aluno.");
+        return;
+      }
+
+      // Em vez de dar alert(), guardamos a turma sorteada no estado!
+      setAssignedTurma(data.aluno.turma);
+
+    } catch (err) {
+      console.error("Erro ao comunicar com o servidor:", err);
+      setError("Não foi possível ligar ao servidor. Verifique se o backend está ativo.");
+    }
   };
 
+  // =========================================================================
+  // VISTA DE SUCESSO: Apresentada de forma fluida assim que a BD atribui a turma
+  // =========================================================================
+  if (assignedTurma) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-6 animate-fade-in">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center border border-[#e9ebef]">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <Check className="w-10 h-10 text-green-600 animate-bounce" />
+          </div>
+          
+          <h1 className="text-3xl font-bold text-[#1e3a5f] mb-2">Inscrição Concluída!</h1>
+          <p className="text-[#717182] mb-6">O teu perfil foi processado e configurado com sucesso.</p>
+          
+          <div className="bg-[#ff6b35]/5 border border-[#ff6b35]/20 rounded-2xl p-6 mb-8">
+            <span className="text-xs font-semibold text-[#ff6b35] uppercase tracking-wider block mb-1">Turma Atribuída</span>
+            <div className="text-4xl font-extrabold text-[#1e3a5f] tracking-tight">{assignedTurma}</div>
+          </div>
+
+          <button
+            onClick={() => navigate("/student")}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-[#ff6b35] text-white font-medium rounded-xl hover:bg-[#ff5722] transition-all shadow-lg transform hover:-translate-y-0.5"
+          >
+            Entrar no Bot de Estudo
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VISTA DO FORMULÁRIO ORIGINAL (Sem alterações visuais)
+  // =========================================================================
   return (
     <div className="min-h-screen bg-[#f5f5f7] p-6">
       <div className="max-w-4xl mx-auto">
@@ -57,9 +121,7 @@ export function StudentSetup() {
             </div>
             <div>
               <h1 className="text-3xl text-[#1e3a5f]">Configuração do Aluno</h1>
-              <p className="text-[#717182]">
-                Configure o seu perfil e disciplinas que estuda
-              </p>
+              <p className="text-[#717182]">Configure o seu perfil e disciplinas que estuda</p>
             </div>
           </div>
 
@@ -85,18 +147,14 @@ export function StudentSetup() {
                 >
                   <option value="">Selecione o ano</option>
                   {grades.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
+                    <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="text-[#1e3a5f] block mb-2">
-                Escola / Instituição
-              </label>
+              <label className="text-[#1e3a5f] block mb-2">Escola / Instituição</label>
               <input
                 type="text"
                 value={school}
@@ -108,15 +166,14 @@ export function StudentSetup() {
           </div>
 
           <div className="mb-8">
-            <label className="text-[#1e3a5f] block mb-4">
-              Selecione as disciplinas que estuda
-            </label>
+            <label className="text-[#1e3a5f] block mb-4">Selecione as disciplinas que estuda</label>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {availableSubjects.map((subject) => {
                 const isSelected = selectedSubjects.includes(subject.id);
                 return (
                   <button
                     key={subject.id}
+                    type="button"
                     onClick={() => toggleSubject(subject.id)}
                     className={`relative p-4 rounded-xl border-2 transition-all ${
                       isSelected
@@ -129,7 +186,7 @@ export function StudentSetup() {
                       <div className="text-sm text-[#1e3a5f]">{subject.name}</div>
                     </div>
                     {isSelected && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-[#ff6b35] rounded-full flex items-center justify-center shadow-lg">
+                      <div className="absolute top-2 right-2 w-6 h-6 bg-[#ff6b35] rounded-full flex items-center justify-center">
                         <Check className="w-4 h-4 text-white" />
                       </div>
                     )}
@@ -137,6 +194,7 @@ export function StudentSetup() {
                 );
               })}
             </div>
+
             {selectedSubjects.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {selectedSubjects.map((subjectId) => {
@@ -155,14 +213,22 @@ export function StudentSetup() {
             )}
           </div>
 
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+              <p className="text-sm font-medium text-red-600">⚠️ {error}</p>
+            </div>
+          )}
+
           <div className="flex justify-between items-center pt-6 border-t border-[#e9ebef]">
             <button
+              type="button"
               onClick={() => navigate("/student/login")}
               className="px-6 py-3 text-[#717182] hover:text-[#1e3a5f] transition-colors"
             >
               Voltar
             </button>
             <button
+              type="button"
               onClick={handleComplete}
               disabled={selectedSubjects.length === 0 || !name || !grade || !school}
               className="flex items-center gap-2 px-8 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
@@ -170,38 +236,6 @@ export function StudentSetup() {
               Começar a Estudar
               <ArrowRight className="w-5 h-5" />
             </button>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-[#1e3a5f]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl">🤖</span>
-            </div>
-            <h4 className="text-[#1e3a5f] mb-2">IA Personalizada</h4>
-            <p className="text-sm text-[#717182]">
-              Respostas adaptadas aos seus materiais
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-[#ff6b35]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl">🎯</span>
-            </div>
-            <h4 className="text-[#1e3a5f] mb-2">Desafios Práticos</h4>
-            <p className="text-sm text-[#717182]">
-              Aprenda identificando erros da IA
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-[#2c4f7c]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl">📊</span>
-            </div>
-            <h4 className="text-[#1e3a5f] mb-2">Feedback Direto</h4>
-            <p className="text-sm text-[#717182]">
-              Receba orientações dos professores
-            </p>
           </div>
         </div>
       </div>

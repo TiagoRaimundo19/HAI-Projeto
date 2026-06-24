@@ -6,11 +6,47 @@ export function StudentLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulação de login - redireciona para configuração
-    navigate("/student/setup");
+    setError(null);
+    
+    try {
+      const response = await fetch("http://localhost:5000/api/alunos/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.erro || "Erro ao efetuar login");
+        return;
+      }
+
+      // Guarda o ID do aluno para uso posterior no Setup
+      localStorage.setItem("studentId", data.aluno.id);
+      
+      console.log("Sucesso:", data.mensagem);
+      
+      // Desvio inteligente baseado na existência de disciplinas
+      if (data.configurado) {
+        navigate("/student");
+      } else {
+        navigate("/student/setup");
+      }
+
+    } catch (err) {
+      console.error("Erro ao ligar ao servidor:", err);
+      setError("Não foi possível ligar ao servidor. Garante que o backend está ativo!");
+    }
   };
 
   return (
@@ -64,21 +100,7 @@ export function StudentLogin() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-[#717182] cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-[#e9ebef] text-[#ff6b35] focus:ring-[#ff6b35]"
-                />
-                Lembrar-me
-              </label>
-              <button
-                type="button"
-                className="text-[#ff6b35] hover:text-[#ff5722] transition-colors"
-              >
-                Esqueci a palavra-passe
-              </button>
-            </div>
+        
 
             <button
               type="submit"
@@ -86,16 +108,16 @@ export function StudentLogin() {
             >
               Entrar como Aluno
             </button>
+
+            {/* Aviso visual de erro */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+                <p className="text-sm font-medium text-red-600">⚠️ {error}</p>
+              </div>
+            )}
           </form>
 
-          <div className="mt-6 pt-6 border-t border-[#e9ebef] text-center">
-            <p className="text-[#717182] text-sm">
-              Primeira vez aqui?{" "}
-              <button className="text-[#ff6b35] hover:text-[#ff5722] transition-colors">
-                Criar conta
-              </button>
-            </p>
-          </div>
+          
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-3">
