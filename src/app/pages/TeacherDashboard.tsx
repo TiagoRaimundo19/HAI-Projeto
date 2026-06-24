@@ -651,65 +651,243 @@ function HeatmapView() {
 // DEBUNKING VIEW
 // =========================================================================
 function DebunkingView() {
-  const results = [
-    { id: 1, student: "Ana Silva", topic: "Derivadas", errorsFound: 3, totalErrors: 3, success: true },
-    { id: 2, student: "João Costa", topic: "Derivadas", errorsFound: 2, totalErrors: 3, success: false },
-    { id: 3, student: "Maria Santos", topic: "Integrais", errorsFound: 3, totalErrors: 3, success: true },
-    { id: 4, student: "Pedro Oliveira", topic: "Integrais", errorsFound: 1, totalErrors: 3, success: false },
-    { id: 5, student: "Sofia Rodrigues", topic: "Derivadas", errorsFound: 3, totalErrors: 3, success: true },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState<any[]>([]);
+  const [temaAtivo, setTemaAtivo] = useState<string | null>(null);
+  const [novoTemaInput, setNovoTemaInput] = useState("");
+  const [lancando, setLancando] = useState(false);
+
+  // Cards de sumário estatístico
+  const [summary, setSummary] = useState({ totalSucesso: 0, totalReforco: 0, taxa: 0 });
+
+  // Listas de filtros obtidas do perfil do professor
+  const [selectedDisciplina, setSelectedDisciplina] = useState("");
+  const [teacherDisciplinas, setTeacherDisciplinas] = useState<string[]>([]);
+  const [selectedAnoEscolar, setSelectedAnoEscolar] = useState("");
+  const [teacherAnosEscolares, setTeacherAnosEscolares] = useState<string[]>([]);
+
+  const teacherId = localStorage.getItem("teacherId");
+
+  // 1. Carrega os filtros (disciplinas e anos) do perfil do docente ao montar o ecrã
+  useEffect(() => {
+    if (!teacherId) return;
+
+    fetch(`http://localhost:5000/api/professores/perfil/${teacherId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.professor) {
+          if (data.professor.disciplinas && data.professor.disciplinas.length > 0) {
+            setTeacherDisciplinas(data.professor.disciplinas);
+            setSelectedDisciplina(data.professor.disciplinas[0]);
+          }
+          if (data.professor.anosEscolares && data.professor.anosEscolares.length > 0) {
+            setTeacherAnosEscolares(data.professor.anosEscolares);
+            setSelectedAnoEscolar(data.professor.anosEscolares[0]);
+          }
+        }
+      })
+      .catch((err) => console.error("Erro ao carregar perfil para filtros:", err));
+  }, [teacherId]);
+
+  // 2. Procura o relatório real e o tema ativo com base nos dropdowns selecionados
+  const carregarRelatorioReal = () => {
+    if (!teacherId || !selectedDisciplina || !selectedAnoEscolar) return;
+
+    setLoading(true);
+    fetch(`http://localhost:5000/api/professores/${teacherId}/debunking/relatorio?disciplina=${selectedDisciplina}&anoEscolar=${selectedAnoEscolar}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTemaAtivo(data.temaAtivo);
+        if (data.summary) setSummary(data.summary);
+        if (data.results) setResults(data.results);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao puxar relatório de debunking:", err);
+        setLoading(false);
+      });
+  };
+
+  // Dispara sempre que o professor muda a disciplina ou o ano
+  useEffect(() => {
+  carregarRelatorioReal(); 
+}, [teacherId, selectedDisciplina, selectedAnoEscolar]);
+
+  // 3. Submete o novo tema para criar o desafio ativo na BD
+  const handleLancarDesafio = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoTemaInput.trim() || !selectedDisciplina || !selectedAnoEscolar) return;
+
+    setLancando(true);
+
+    fetch(`http://localhost:5000/api/professores/${teacherId}/debunking/lancar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        disciplina: selectedDisciplina,
+        anoEscolar: selectedAnoEscolar,
+        tema: novoTemaInput.trim()
+      })
+    })
+      .then((res) => {
+        if (res.ok) {
+          alert(`🚀 Desafio sobre "${novoTemaInput.trim()}" lançado com sucesso!`);
+          setNovoTemaInput("");
+          carregarRelatorioReal(); // Atualiza os painéis na hora
+        } else {
+          alert("Erro ao lançar desafio.");
+        }
+      })
+      .catch(() => alert("Erro na ligação ao servidor."))
+      .finally(() => setLancando(false));
+  };
 
   return (
-    <div>
-      <h1 className="text-[#1e3a5f] mb-6">Relatório de Debunking</h1>
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+    <div className="space-y-6">
+      
+      {/* CABEÇALHO DA VIEW COM OS SELETORES */}
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h1 className="text-[#1e3a5f]">Relatório de Debunking</h1>
+          <p className="text-sm text-[#717182] mt-0.5">Gestão de desafios de caça às alucinações e controlo crítico da turma.</p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedDisciplina}
+            onChange={(e) => setSelectedDisciplina(e.target.value)}
+            className="bg-white border border-[#e9ebef] text-[#1e3a5f] text-sm rounded-lg p-3 focus:outline-none"
+          >
+            {teacherDisciplinas.map((disc, idx) => (
+              <option key={idx} value={disc}>Pasta: {disc.toUpperCase()}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedAnoEscolar}
+            onChange={(e) => setSelectedAnoEscolar(e.target.value)}
+            className="bg-white border border-[#e9ebef] text-[#1e3a5f] text-sm rounded-lg p-3 focus:outline-none"
+          >
+            {teacherAnosEscolares.map((ano, idx) => (
+              <option key={idx} value={ano}>Ano: {ano}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* PAINEL DE CONTROLO ATIVO (LANÇADOR DE DESAFIOS) */}
+      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-[#ff6b35]">
+        <h3 className="text-[#1e3a5f] font-bold text-base mb-2 flex items-center gap-2">
+          <span>🎯</span> Lançar Novo Desafio para esta Turma
+        </h3>
+        <p className="text-xs text-[#717182] mb-4">
+          Escreva o tema da aula. O Gemini irá gerar um resumo para o aluno contendo 3 erros conceituais propositados para ele caçar.
+        </p>
+
+        <form onSubmit={handleLancarDesafio} className="flex gap-3 max-w-xl">
+          <input
+            type="text"
+            placeholder="Ex: Derivadas, Matrizes, Limites..."
+            value={novoTemaInput}
+            onChange={(e) => setNovoTemaInput(e.target.value)}
+            className="flex-1 p-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-sm text-[#1e3a5f] focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
+            disabled={lancando}
+          />
+          <button
+            type="submit"
+            disabled={!novoTemaInput.trim() || lancando}
+            className="px-6 py-3 bg-[#ff6b35] text-white text-sm font-bold rounded-lg hover:bg-[#ff5722] transition-colors shadow-md disabled:opacity-40"
+          >
+            {lancando ? "A ativar..." : "Lançar Desafio"}
+          </button>
+        </form>
+
+        {temaAtivo && (
+          <div className="mt-4 text-xs font-semibold text-[#1e3a5f] bg-[#1e3a5f]/5 px-3 py-2 rounded-lg inline-flex items-center gap-1.5 border border-[#1e3a5f]/10">
+            <span className="animate-ping w-1.5 h-1.5 rounded-full bg-green-500 mr-2" />
+            Desafio em curso nesta turma: <span className="text-[#ff6b35] uppercase font-bold">{temaAtivo}</span>
+          </div>
+        )}
+      </div>
+
+      {/* BLOCO DE RELATÓRIO E CARDS VISUAIS */}
+      <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex items-center gap-4 mb-6">
           <CheckCircle className="w-6 h-6 text-[#ff6b35]" />
           <div>
             <h3 className="text-[#1e3a5f]">Desafio de Alucinação Controlada</h3>
-            <p className="text-sm text-[#717182]">Alunos que conseguiram identificar erros deliberados na explicação da IA</p>
+            <p className="text-sm text-[#717182]">
+              Histórico de submissões para o tema <span className="font-bold uppercase text-[#1e3a5f]">{temaAtivo || "Nenhum lançado"}</span>
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-[#1e3a5f]/5 p-6 rounded-xl">
-            <div className="text-3xl text-[#1e3a5f] mb-1">{results.filter((r) => r.success).length}</div>
-            <div className="text-sm text-[#717182]">Alunos com Sucesso Total</div>
+        {loading ? (
+          <div className="text-center py-12 text-[#717182] animate-pulse font-medium">🤖 A aceder às tentativas na base de dados...</div>
+        ) : !temaAtivo ? (
+          <div className="text-center py-12 text-[#717182] italic bg-[#f8f9fa] rounded-xl border border-dashed p-6">
+            Não existem dados disponíveis porque ainda não ativou nenhum desafio de debunking para esta combinação de turma.
           </div>
-          <div className="bg-[#ff6b35]/5 p-6 rounded-xl">
-            <div className="text-3xl text-[#ff6b35] mb-1">{results.filter((r) => !r.success).length}</div>
-            <div className="text-sm text-[#717182]">Necessitam Reforço</div>
-          </div>
-          <div className="bg-[#2c4f7c]/5 p-6 rounded-xl">
-            <div className="text-3xl text-[#2c4f7c] mb-1">{Math.round((results.filter((r) => r.success).length / results.length) * 100)}%</div>
-            <div className="text-sm text-[#717182]">Taxa de Sucesso</div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {results.map((result) => (
-            <div key={result.id} className={`flex items-center justify-between p-4 rounded-lg ${result.success ? "bg-[#4ade80]/10" : "bg-[#fbbf24]/10"}`}>
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 ${result.success ? "bg-[#4ade80]" : "bg-[#fbbf24]"} text-white rounded-full flex items-center justify-center`}>
-                  {result.student.charAt(0)}
-                </div>
-                <div>
-                  <div className="text-[#1e3a5f]">{result.student}</div>
-                  <div className="text-sm text-[#717182]">{result.topic}</div>
-                </div>
+        ) : (
+          <div className="space-y-6">
+            
+            {/* Grelha de Sumários (Cards de Progresso Reativos) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-[#1e3a5f]/5 p-6 rounded-xl border border-[#1e3a5f]/10">
+                <div className="text-3xl font-bold text-[#1e3a5f] mb-1">{summary.totalSucesso}</div>
+                <div className="text-sm font-medium text-[#717182]">Alunos com Sucesso Total</div>
               </div>
-              <div className="text-right">
-                <div className="text-[#1e3a5f]">{result.errorsFound}/{result.totalErrors} erros detetados</div>
-                <div className={`text-sm ${result.success ? "text-[#4ade80]" : "text-[#fbbf24]"}`}>{result.success ? "✓ Sucesso" : "○ Parcial"}</div>
+              <div className="bg-[#ff6b35]/5 p-6 rounded-xl border border-[#ff6b35]/10">
+                <div className="text-3xl font-bold text-[#ff6b35] mb-1">{summary.totalReforco}</div>
+                <div className="text-sm font-medium text-[#717182]">Necessitam Reforço</div>
+              </div>
+              <div className="bg-green-50/50 p-6 rounded-xl border border-green-200">
+                <div className="text-3xl font-bold text-green-600 mb-1">{summary.taxa}%</div>
+                <div className="text-sm font-medium text-[#717182]">Taxa de Sucesso da Turma</div>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* LISTA REAL DOS ALUNOS DO GRUPO */}
+            <div className="space-y-3">
+              {results.length === 0 ? (
+                <div className="text-center py-6 text-xs text-[#717182] bg-gray-50 rounded-lg border border-dashed">
+                  O desafio está ativo para a turma, mas nenhum estudante enviou a sua resposta até ao momento.
+                </div>
+              ) : (
+                results.map((result) => (
+                  <div
+                    key={result.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                      result.success ? "bg-green-50/60 border-green-200" : "bg-amber-50/40 border-amber-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 ${result.success ? "bg-green-500" : "bg-amber-500"} text-white rounded-full flex items-center justify-center font-bold shadow-xs uppercase`}>
+                        {result.student.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="text-[#1e3a5f] font-semibold">{result.student}</div>
+                        <div className="text-xs text-[#717182] font-semibold uppercase tracking-wider">{result.topic}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[#1e3a5f] font-semibold text-sm">
+                        {result.errorsFound}/{result.totalErrors} erros detetados
+                      </div>
+                      <div className={`text-xs font-bold mt-0.5 ${result.success ? "text-green-600" : "text-amber-600"}`}>
+                        {result.success ? "✓ Sucesso Total" : "○ Resolução Parcial"}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
 // =========================================================================
 // FEEDBACK VIEW
 // =========================================================================

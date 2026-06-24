@@ -9,7 +9,8 @@ const Professor = require('./models/Professor');
 const Aluno = require('./models/Aluno');
 const Material = require('./models/Material');
 const TemaDificuldade = require('./models/TemaDificuldade');
-
+const DesafioDebunking = require('./models/DesafioDebunking');
+const TentativaDebunking = require('./models/TentativaDebunking');
 
 const { GoogleGenAI } = require('@google/genai');
 
@@ -810,5 +811,217 @@ app.get('/api/professores/:teacherId/heatmap', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao processar o heatmap térmico:', error);
     return res.status(500).json({ erro: 'Erro interno ao processar o mapa de calor.' });
+  }
+});
+
+
+
+// =========================================================================
+// 🎯 CONTROLADORES DE DEBUNKING (CAÇA ÀS ALUCINAÇÕES)
+// =========================================================================
+
+// ROTA POST: Professor lança um novo desafio para uma turma
+app.post('/api/professores/:teacherId/debunking/lancar', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { disciplina, anoEscolar, tema } = req.body;
+
+    if (!disciplina || !anoEscolar || !tema || !tema.trim()) {
+      return res.status(400).json({ erro: 'Todos os campos são obrigatórios para lançar o desafio!' });
+    }
+
+    // Desativa desafios anteriores desta disciplina e ano para este professor
+    await DesafioDebunking.updateMany(
+      { professor: teacherId, disciplina: disciplina.toUpperCase(), anoEscolar: anoEscolar },
+      { ativo: false }
+    );
+
+    // Cria o novo desafio ativo
+    const novoDesafio = new DesafioDebunking({
+      professor: teacherId,
+      disciplina: disciplina.toUpperCase(),
+      anoEscolar: anoEscolar,
+      tema: tema.trim(),
+      ativo: true
+    });
+
+    await novoDesafio.save();
+    console.log(`🔥 [DEBUNKING] Desafio lançado: "${tema.trim()}" para o ${anoEscolar} de ${disciplina.toUpperCase()}`);
+    
+    return res.status(201).json({ mensagem: 'Desafio lançado com sucesso!', desafio: novoDesafio });
+  } catch (error) {
+    console.error('Erro ao lançar desafio:', error);
+    return res.status(500).json({ erro: 'Erro ao registar o desafio no servidor.' });
+  }
+});
+
+// ROTA GET: Carrega o tema ativo e o relatório real de progresso dos alunos
+app.get('/api/professores/:teacherId/debunking/relatorio', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { disciplina, anoEscolar } = req.query;
+
+    if (!disciplina || !anoEscolar) {
+      return res.status(400).json({ erro: 'Filtros de disciplina e ano letivo são obrigatórios.' });
+    }
+
+    // 1. Procura o tema ativo
+    const desafioAtivo = await DesafioDebunking.findOne({
+      professor: teacherId,
+      disciplina: disciplina.toUpperCase(),
+      anoEscolar: anoEscolar,
+      ativo: true
+    }).lean();
+
+    const temaAlvo = desafioAtivo ? desafioAtivo.tema : null;
+
+    if (!temaAlvo) {
+      return res.status(200).json({ temaAtivo: null, summary: { totalSucesso: 0, totalReforco: 0, taxa: 0 }, results: [] });
+    }
+
+    // 2. Procura as tentativas dos alunos associadas a esse tema ativo
+    const tentativas = await TentativaDebunking.find({
+      professor: teacherId,
+      disciplina: disciplina.toUpperCase(),
+      anoEscolar: anoEscolar,
+      tema: temaAlvo
+    })
+    .populate('aluno', 'nome email')
+    .sort({ criadoEm: -1 })
+    .lean();
+
+    // 3. Compila as métricas para os painéis
+    const totalSucesso = tentativas.filter(t => t.success).length;
+    const totalReforco = tentativas.filter(t => !t.success).length;
+    const totalTentativas = tentativas.length;
+    const taxaSucesso = totalTentativas > 0 ? Math.round((totalSucesso / totalTentativas) * 100) : 0;
+
+    const resultadosFormatados = tentativas.map(t => ({
+      id: t._id,
+      student: t.aluno ? t.aluno.nome : "Estudante Anónimo",
+      topic: t.tema,
+      errorsFound: t.errorsFound,
+      totalErrors: t.totalErrors,
+      success: t.success
+    }));
+
+    return res.status(200).json({
+      temaAtivo: temaAlvo,
+      summary: { totalSucesso, totalReforco, taxa: taxaSucesso },
+      results: resultadosFormatados
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar relatório de debunking:', error);
+    return res.status(500).json({ erro: 'Erro interno ao compilar os dados do relatório.' });
+  }
+});
+
+
+
+// 🔄 ROTA GET: Busca o desafio em curso para o ano escolar deste aluno
+app.get('/api/alunos/:studentId/debunking/desafio', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // 1. Localiza o aluno para saber o seu ano escolar
+    const aluno = await Aluno.findById(studentId).lean();
+    if (!aluno) return res.status(404).json({ erro: 'Aluno não encontrado.' });
+
+    // 2. Procura um desafio ativo do professor correspondente a este Ano Escolar
+    const desafio = await DesafioDebunking.findOne({
+      anoEscolar: aluno.anoEscolar,
+      ativo: true
+    }).sort({ criadoEm: -1 }).lean();
+
+    if (!desafio) {
+      return res.status(200).json({ desafio: null, mensagem: 'Não há nenhum desafio ativo para a tua turma.' });
+    }
+
+    // 3. Banco de dados de afirmações (Simula o motor de IA gerando as alucinações controladas)
+    const bibliotecaDeTemas = {
+      "DERIVADAS": [
+        { id: 1, texto: "A derivada de uma função f(x) = x² é 2x.", incorreta: false },
+        { id: 2, texto: "Isto acontece porque quando aplicamos a regra da potência, multiplicamos o expoente pela base e subtraímos 1 ao expoente.", incorreta: false },
+        { id: 3, texto: "Portanto, temos 2 × x²⁻¹ = 2x.", incorreta: false },
+        { id: 4, texto: "A derivada também pode ser interpretada como a área sob a curva da função original.", incorreta: true }, // ❌ Erro (Isto é o integral)
+        { id: 5, texto: "Se uma função possui uma descontinuidade num ponto isolado, ela é obrigatoriamente derivável nesse ponto.", incorreta: true }, // ❌ Erro
+        { id: 6, texto: "A derivada de uma constante isolada resulta sempre no valor da própria constante original.", incorreta: true } // ❌ Erro (Resulta em 0)
+      ]
+    };
+
+    const temaKey = desafio.tema.toUpperCase();
+    let frasesCompletas = bibliotecaDeTemas[temaKey] || [
+      { id: 1, texto: `O cálculo de ${desafio.tema} serve para inverter matrizes nulas.`, incorreta: true },
+      { id: 2, texto: `É possível aplicar os teoremas fundamentais de ${desafio.tema} em problemas científicos.`, incorreta: false },
+      { id: 3, texto: "Todos os limites laterais tendem ao infinito por definição padrão.", incorreta: true },
+      { id: 4, texto: "A constante multiplicativa acumula-se ao expoente quadrático.", incorreta: true }
+    ];
+
+    // ⚠️ SEGURANÇA: Removemos a propriedade 'incorreta' antes de enviar para o cliente!
+    // Isto impede que o aluno descubra as respostas certas espreitando o Network no Inspecionar Elemento.
+    const frasesHigienizadas = frasesCompletas.map(f => ({ id: f.id, texto: f.texto }));
+
+    return res.status(200).json({
+      desafioId: desafio._id,
+      tema: desafio.tema,
+      disciplina: desafio.disciplina,
+      frases: frasesHigienizadas
+    });
+
+  } catch (error) {
+    console.error('Erro ao servir desafio ao aluno:', error);
+    return res.status(500).json({ erro: 'Erro ao carregar o desafio.' });
+  }
+});
+
+// 🚀 ROTA POST: Processa a submissão da caçada a erros do aluno e grava na BD
+app.post('/api/alunos/:studentId/debunking/submeter', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { desafioId, respostasSelecionadas } = req.body; // Array de IDs selecionados pelo estudante
+
+    const aluno = await Aluno.findById(studentId).lean();
+    const desafio = await DesafioDebunking.findById(desafioId).lean();
+
+    if (!aluno || !desafio) return res.status(404).json({ erro: 'Dados não localizados.' });
+
+    // Mapeamento dos IDs falsos reais para validação segura server-side
+    let idsFalsosReais = [4, 5, 6]; // Padrão para derivadas
+    if (desafio.tema.toUpperCase() !== "DERIVADAS") {
+      idsFalsosReais = [1, 3, 4];
+    }
+
+    // 🎯 Conta quantos erros reais o aluno conseguiu caçar com sucesso
+    const errosApanhados = respostasSelecionadas.filter(id => idsFalsosReais.includes(id)).length;
+    const totalErrosDesafio = idsFalsosReais.length;
+
+    // Sucesso total significa ter apanhado TODOS os erros (3 de 3)
+    const sucessoTotal = errosApanhados === totalErrosDesafio;
+
+    // Grava a tentativa para alimentar o ecrã do professor instantaneamente
+    const novaTentativa = new TentativaDebunking({
+      aluno: studentId,
+      professor: desafio.professor,
+      disciplina: desafio.disciplina,
+      anoEscolar: aluno.anoEscolar,
+      tema: desafio.tema,
+      errorsFound: errosApanhados,
+      totalErrors: totalErrosDesafio,
+      success: sucessoTotal
+    });
+
+    await novaTentativa.save();
+
+    return res.status(200).json({
+      mensagem: 'Desafio concluído com sucesso!',
+      errorsFound: errosApanhados,
+      totalErrors: totalErrosDesafio,
+      success: sucessoTotal
+    });
+
+  } catch (error) {
+    console.error('Erro ao validar submissão de debunking:', error);
+    return res.status(500).json({ erro: 'Erro interno ao computar resposta.' });
   }
 });

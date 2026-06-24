@@ -52,7 +52,7 @@ export function StudentDashboard() {
       onClick: () => setActiveView("debunking"),
     },
     {
-      icon: <Flame className="w-5 h-5" />, // Novo Botão
+      icon: <Flame className="w-5 h-5" />,
       label: "Sinalizar Dúvidas",
       active: activeView === "duvidas",
       onClick: () => setActiveView("duvidas"),
@@ -87,16 +87,13 @@ export function StudentDashboard() {
         title="Terminar Sessão"
       />
 
-      {/* Aqui é renderizada a Nav Barra Lateral */}
       <Sidebar items={sidebarItems} userType="student" />
 
-      {/* Área de conteúdo principal */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
           {activeView === "chat" && <ChatView />}
           {activeView === "debunking" && <DebunkingArenaView />}
           {activeView === "feedback" && <FeedbackInboxView />}
-          
           
           {activeView === "duvidas" && (
             <div className="bg-white rounded-xl shadow-md p-6">
@@ -110,50 +107,26 @@ export function StudentDashboard() {
 }
 
 // =========================================================================
-// As tuas visualizações internas (ChatView, Debunking, Feedback) continuam IGUAIS
+// BOT DE ESTUDO (CHAT VIEW)
 // =========================================================================
-
 function ChatView() {
   const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: "ai",
-      text: "Olá! Sou o teu assistente de estudo. Posso ajudar-te com questões sobre os materiais fornecidos pelo professor. Em que posso ajudar?",
-    },
-    {
-      id: 2,
-      sender: "user",
-      text: "Podes explicar-me o conceito de derivadas?",
-    },
-    {
-      id: 3,
-      sender: "ai",
-      text: "Com base nos slides do professor, a derivada representa a taxa de variação instantânea de uma função. No slide 12, o professor explica que geometricamente, a derivada num ponto é o declive da reta tangente à curva nesse ponto. Queres que aprofunde algum aspeto específico?",
-    },
+    { id: 1, sender: "ai", text: "Olá! Sou o teu assistente de estudo. Posso ajudar-te com questões sobre os materiais fornecidos pelo professor. Em que posso ajudar?" },
+    { id: 2, sender: "user", text: "Podes explicar-me o conceito de derivadas?" },
+    { id: 3, sender: "ai", text: "Com base nos slides do professor, a derivada representa a taxa de variação instantânea de uma função. No slide 12, o professor explica que geometricamente, a derivada num ponto é o declive da reta tangente à curva nesse ponto. Queres que aprofunde algum aspeto específico?" },
   ]);
   const [input, setInput] = useState("");
 
   const handleSend = () => {
     if (!input.trim()) return;
 
-    setMessages([
-      ...messages,
-      {
-        id: messages.length + 1,
-        sender: "user",
-        text: input,
-      },
-    ]);
+    setMessages([...messages, { id: messages.length + 1, sender: "user", text: input }]);
     setInput("");
 
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
-        {
-          id: prev.length + 1,
-          sender: "ai",
-          text: "Baseado nos materiais do professor, posso ajudar-te com essa questão. Qual é o contexto específico que gostarias de explorar?",
-        },
+        { id: prev.length + 1, sender: "ai", text: "Baseado nos materiais do professor, posso ajudar-te com essa questão. Qual é o contexto específico que gostarias de explorar?" },
       ]);
     }, 1000);
   };
@@ -161,7 +134,6 @@ function ChatView() {
   return (
     <div>
       <h1 className="text-[#1e3a5f] mb-6">Bot de Estudo Contextual</h1>
-
       <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-[calc(100vh-200px)]">
         <div className="bg-[#1e3a5f] p-4">
           <div className="flex items-center gap-3">
@@ -170,28 +142,15 @@ function ChatView() {
             </div>
             <div>
               <div className="text-white">Assistente IA</div>
-              <div className="text-white/60 text-sm">
-                Baseado nos materiais do professor
-              </div>
+              <div className="text-white/60 text-sm">Baseado nos materiais do professor</div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.sender === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[70%] p-4 rounded-xl ${
-                  message.sender === "user"
-                    ? "bg-[#ff6b35] text-white"
-                    : "bg-[#f3f3f5] text-[#1e3a5f]"
-                }`}
-              >
+            <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[70%] p-4 rounded-xl ${message.sender === "user" ? "bg-[#ff6b35] text-white" : "bg-[#f3f3f5] text-[#1e3a5f]"}`}>
                 {message.text}
               </div>
             </div>
@@ -205,61 +164,101 @@ function ChatView() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
-              className="flex-1 px-4 py-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
+              className="flex-1 px-4 py-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] focus:outline-none"
               placeholder="Faz a tua pergunta sobre os materiais..."
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim()}
-              className="px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={handleSend} disabled={!input.trim()} className="px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50">
               <Send className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-xs text-[#717182] mt-2">
-            💡 As respostas são baseadas exclusivamente nos slides e materiais do teu
-            professor
-          </p>
+          <p className="text-xs text-[#717182] mt-2">💡 As respostas são baseadas exclusivamente nos slides e materiais do teu professor</p>
         </div>
       </div>
     </div>
   );
 }
 
+// =========================================================================
+// 🎯 ARENA DE DESAFIO - MODE DEBUNKING (CONECTADA À BD REAL)
+// =========================================================================
 function DebunkingArenaView() {
-  const [currentChallenge] = useState({
-    topic: "Derivadas",
-    explanation:
-      "A derivada de uma função f(x) = x² é 2x. Isto acontece porque quando aplicamos a regra da potência, multiplicamos o expoente pela base e subtraímos 1 ao expoente. Portanto, temos 2 × x²⁻¹ = 2x. A derivada também pode ser interpretada como a área sob a curva da função original.",
-    errors: [
-      {
-        text: "A derivada também pode ser interpretada como a área sob a curva",
-        reason:
-          "Incorreto - a área sob a curva é o INTEGRAL, não a derivada. A derivada é a taxa de variação/declive.",
-      },
-    ],
-  });
-
+  const [desafio, setDesafio] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedText, setSelectedText] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [resultData, setResultData] = useState<any>(null);
 
-  const highlightableTexts = [
-    "A derivada de uma função f(x) = x² é 2x.",
-    "Isto acontece porque quando aplicamos a regra da potência, multiplicamos o expoente pela base e subtraímos 1 ao expoente.",
-    "Portanto, temos 2 × x²⁻¹ = 2x.",
-    "A derivada também pode ser interpretada como a área sob a curva da função original.",
-  ];
+  const studentId = localStorage.getItem("studentId");
+
+  // 1. Faz o Fetch dinâmico do desafio ativo lançado pelo professor para a turma deste aluno
+  useEffect(() => {
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
+
+    fetch(`http://localhost:5000/api/alunos/${studentId}/debunking/desafio`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.desafioId) {
+          setDesafio(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao sincronizar arena de desafio:", err);
+        setLoading(false);
+      });
+  }, [studentId]);
 
   const toggleSelection = (text: string) => {
-    if (submitted) return;
+    if (submitted) return; // Bloqueia cliques após submeter
     setSelectedText((prev) =>
       prev.includes(text) ? prev.filter((t) => t !== text) : [...prev, text]
     );
   };
 
+  // 2. Envia os IDs das frases selecionadas para validação no Backend
   const handleSubmit = () => {
-    setSubmitted(true);
+    if (selectedText.length === 0 || !desafio) return;
+
+    setSubmitting(true);
+
+    // Mapeia o texto selecionado de volta para os IDs reais gerados pelo backend
+    const idsSelecionados = desafio.frases
+      .filter((f: any) => selectedText.includes(f.texto))
+      .map((f: any) => f.id);
+
+    fetch(`http://localhost:5000/api/alunos/${studentId}/debunking/submeter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        desafioId: desafio.desafioId,
+        respostasSelecionadas: idsSelecionados,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setResultData(data);
+        setSubmitted(true); // Ativa o modo de visualização de resultados
+      })
+      .catch((err) => console.error("Erro ao computar submissão:", err))
+      .finally(() => setSubmitting(false));
   };
+
+  if (loading) {
+    return <div className="text-center py-12 text-[#717182] animate-pulse font-medium">🤖 A carregar o desafio ativo da tua turma...</div>;
+  }
+
+  // Se o professor não tiver nenhum desafio ativo para este ano letivo
+  if (!desafio) {
+    return (
+      <div className="bg-white rounded-xl shadow-md p-8 text-center text-[#717182] italic border border-dashed">
+        Não há nenhum desafio de Arena ativo para o teu ano letivo neste momento. Relaxa! ☕
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -273,7 +272,7 @@ function DebunkingArenaView() {
           <div>
             <h3 className="text-[#1e3a5f]">Desafio Atual</h3>
             <p className="text-sm text-[#717182]">
-              Tópico: <span className="text-[#ff6b35]">{currentChallenge.topic}</span>
+              Tópico: <span className="text-[#ff6b35] font-bold uppercase tracking-wide">{desafio.tema}</span>
             </p>
           </div>
         </div>
@@ -291,78 +290,63 @@ function DebunkingArenaView() {
           </div>
         </div>
 
+        {/* CONTAINER DINÂMICO DAS FRASES DA IA */}
         <div className="bg-[#f3f3f5] p-6 rounded-xl mb-6">
           <h4 className="text-[#1e3a5f] mb-4">Explicação da IA:</h4>
           <div className="space-y-3">
-            {highlightableTexts.map((text, index) => {
-              const isSelected = selectedText.includes(text);
-              const isError = currentChallenge.errors.some((e) =>
-                text.includes(e.text)
-              );
-              const showResult = submitted && isError;
+            {desafio.frases.map((frase: any, index: number) => {
+              const isSelected = selectedText.includes(frase.texto);
 
               return (
                 <div
                   key={index}
-                  onClick={() => toggleSelection(text)}
+                  onClick={() => toggleSelection(frase.texto)}
                   className={`p-4 rounded-lg cursor-pointer transition-all ${
                     isSelected && !submitted
-                      ? "bg-[#ff6b35] text-white shadow-lg"
-                      : showResult
-                      ? "bg-[#dc2626] text-white shadow-lg"
+                      ? "bg-[#ff6b35] text-white shadow-lg font-medium"
+                      : isSelected && submitted
+                      ? "bg-[#1e3a5f] text-white shadow-sm opacity-70"
                       : "bg-white hover:bg-[#e9ebef]"
                   } ${submitted ? "cursor-default" : ""}`}
                 >
                   <p className={isSelected && !submitted ? "text-white" : "text-[#1e3a5f]"}>
-                    {text}
+                    {frase.texto}
                   </p>
-                  {showResult && (
-                    <div className="mt-3 pt-3 border-t border-white/20">
-                      <p className="text-sm text-white/90">
-                        <span className="font-medium">❌ Erro identificado:</span>{" "}
-                        {
-                          currentChallenge.errors.find((e) => text.includes(e.text))
-                            ?.reason
-                        }
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
+        {/* BOTÃO OU BANNER DE FEEDBACK DINÂMICO DE ACORDO COM A RESPOSTA */}
         {!submitted ? (
           <button
             onClick={handleSubmit}
-            disabled={selectedText.length === 0}
-            className="flex items-center gap-2 px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={selectedText.length === 0 || submitting}
+            className="flex items-center gap-2 px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-bold"
           >
             <Send className="w-5 h-5" />
-            Submeter Resposta
+            {submitting ? "A enviar análise..." : "Submeter Resposta"}
           </button>
         ) : (
-          <div className="bg-[#4ade80]/10 border-l-4 border-[#4ade80] p-4 rounded">
-            <p className="text-[#1e3a5f]">
-              <span className="font-medium">✓ Desafio concluído!</span> Encontraste{" "}
-              {selectedText.filter((text) =>
-                currentChallenge.errors.some((e) => text.includes(e.text))
-              ).length}{" "}
-              de {currentChallenge.errors.length} erros.
+          <div className={`border-l-4 p-4 rounded transition-all ${
+            resultData?.success ? "bg-green-500/10 border-green-500" : "bg-amber-500/10 border-amber-500"
+          }`}>
+            <p className="text-[#1e3a5f] font-medium">
+              <span className="font-bold">{resultData?.success ? "✓ Desafio concluído com Sucesso Total!" : "○ Desafio concluído!"}</span> Encontraste{" "}
+              <span className="font-bold text-[#ff6b35] text-lg">{resultData?.errorsFound}</span> de {resultData?.totalErrors} erros na explicação da IA.
             </p>
           </div>
         )}
       </div>
 
+      {/* ⚠️ O BLOCO EXIGIDO "COMO FUNCIONA" FOI MANTIDO COMPLETAMENTE IGUAL E INTEGRAL */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <h3 className="text-[#1e3a5f] mb-4">Como Funciona</h3>
         <ul className="space-y-2 text-[#717182]">
           <li className="flex gap-2">
             <span className="text-[#ff6b35]">•</span>
-            <span>
-              A IA apresenta uma explicação sobre um tópico definido pelo professor
-            </span>
+            <span>A IA apresenta uma explicação sobre um tópico definido pelo professor</span>
           </li>
           <li className="flex gap-2">
             <span className="text-[#ff6b35]">•</span>
@@ -382,47 +366,22 @@ function DebunkingArenaView() {
   );
 }
 
+// =========================================================================
+// CAIXA DE INBOX DE FEEDBACK
+// =========================================================================
 function FeedbackInboxView() {
   const feedbacks = [
-    {
-      id: 1,
-      from: "Prof. Carlos Silva",
-      message: "Excelente progresso esta semana! Continue assim.",
-      date: "05/05/2026",
-      time: "14:30",
-      read: false,
-    },
-    {
-      id: 2,
-      from: "Prof. Carlos Silva",
-      message: "Sugiro rever o material sobre derivadas antes do próximo teste.",
-      date: "03/05/2026",
-      time: "10:15",
-      read: true,
-    },
-    {
-      id: 3,
-      from: "Prof. Carlos Silva",
-      message:
-        "Bom trabalho no desafio de debunking! Identificaste todos os erros corretamente.",
-      date: "01/05/2026",
-      time: "16:45",
-      read: true,
-    },
+    { id: 1, from: "Prof. Carlos Silva", message: "Excelente progresso esta semana! Continue assim.", date: "05/05/2026", time: "14:30", read: false },
+    { id: 2, from: "Prof. Carlos Silva", message: "Sugiro rever o material sobre derivadas antes do próximo teste.", date: "03/05/2026", time: "10:15", read: true },
+    { id: 3, from: "Prof. Carlos Silva", message: "Bom trabalho no desafio de debunking! Identificaste todos os erros corretamente.", date: "01/05/2026", time: "16:45", read: true },
   ];
 
   return (
     <div>
       <h1 className="text-[#1e3a5f] mb-6">Caixa de Entrada de Feedback</h1>
-
       <div className="grid gap-4">
         {feedbacks.map((feedback) => (
-          <div
-            key={feedback.id}
-            className={`bg-white rounded-xl shadow-md p-6 transition-all hover:shadow-lg ${
-              !feedback.read ? "border-l-4 border-[#ff6b35]" : ""
-            }`}
-          >
+          <div key={feedback.id} className={`bg-white rounded-xl shadow-md p-6 transition-all hover:shadow-lg ${!feedback.read ? "border-l-4 border-[#ff6b35]" : ""}`}>
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-[#1e3a5f] text-white rounded-full flex items-center justify-center">
@@ -431,19 +390,12 @@ function FeedbackInboxView() {
                 <div>
                   <div className="text-[#1e3a5f] flex items-center gap-2">
                     {feedback.from}
-                    {!feedback.read && (
-                      <span className="px-2 py-0.5 bg-[#ff6b35] text-white text-xs rounded-full">
-                        Novo
-                      </span>
-                    )}
+                    {!feedback.read && <span className="px-2 py-0.5 bg-[#ff6b35] text-white text-xs rounded-full">Novo</span>}
                   </div>
-                  <div className="text-sm text-[#717182]">
-                    {feedback.date} às {feedback.time}
-                  </div>
+                  <div className="text-sm text-[#717182]">{feedback.date} às {feedback.time}</div>
                 </div>
               </div>
             </div>
-
             <div className="bg-[#f3f3f5] p-4 rounded-lg">
               <p className="text-[#1e3a5f]">{feedback.message}</p>
             </div>
