@@ -892,16 +892,17 @@ function DebunkingView() {
 // FEEDBACK VIEW
 // =========================================================================
 function FeedbackView() {
-  const students = [
-    { id: 1, name: "Ana Silva", turma: "Turma A" },
-    { id: 2, name: "João Costa", turma: "Turma A" },
-    { id: 3, name: "Maria Santos", turma: "Turma B" },
-    { id: 4, name: "Pedro Oliveira", turma: "Turma B" },
-    { id: 5, name: "Sofia Rodrigues", turma: "Turma A" },
-  ];
-
-  const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
+  const [students, setStudents] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [message, setMessage] = useState("");
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Estados para os seletores dinâmicos exigidos pelo backend
+  const [selectedDisciplina, setSelectedDisciplina] = useState("");
+  const [selectedDay, setSelectedDay] = useState("segunda-feira");
+
+  const teacherId = localStorage.getItem("teacherId");
 
   const quickMessages = [
     "Bom trabalho! Continue assim.",
@@ -910,45 +911,170 @@ function FeedbackView() {
     "Sugiro rever o material sobre derivadas.",
   ];
 
+  const diasSemana = [
+    "segunda-feira", "terça-feira", "quarta-feira", 
+    "quinta-feira", "sexta-feira", "sábado", "domingo"
+  ];
+
+  // 1. Carrega os alunos reais associados a este professor
+  useEffect(() => {
+    if (!teacherId) {
+      setLoadingStudents(false);
+      return;
+    }
+
+    fetch(`http://localhost:5000/api/professores/${teacherId}/alunos`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.students) {
+          setStudents(data.students);
+          // Pré-seleciona o primeiro aluno da lista
+          if (data.students.length > 0) {
+            setSelectedStudent(data.students[0]);
+            if (data.students[0].disciplinas && data.students[0].disciplinas.length > 0) {
+              setSelectedDisciplina(data.students[0].disciplinas[0]);
+            }
+          }
+        }
+        setLoadingStudents(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar alunos para o feedback:", err);
+        setLoadingStudents(false);
+      });
+  }, [teacherId]);
+
+  // Atualiza os dropdowns automaticamente ao trocar de estudante
+  const handleSelectStudent = (student: any) => {
+    setSelectedStudent(student);
+    if (student.disciplinas && student.disciplinas.length > 0) {
+      setSelectedDisciplina(student.disciplinas[0]);
+    } else {
+      setSelectedDisciplina("");
+    }
+  };
+
+  // 2. Dispara o envio real para a rota POST do teu servidor Express
+  const handleSendFeedback = () => {
+    if (!selectedStudent || !message.trim() || !selectedDisciplina) return;
+
+    setSubmitting(true);
+    const sId = selectedStudent._id || selectedStudent.id;
+
+    fetch(`http://localhost:5000/api/professores/${teacherId}/feedback/enviar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        alunoId: sId,
+        disciplina: selectedDisciplina,
+        mensagem: message.trim(),
+        diaSemana: selectedDay
+      })
+    })
+      .then((res) => {
+        if (res.ok) {
+          alert(`🎉 Feedback enviado com sucesso para ${selectedStudent.nome || selectedStudent.name}!`);
+          setMessage(""); // Limpa o campo de escrita
+        } else {
+          alert("Erro ao registar o feedback no servidor.");
+        }
+      })
+      .catch(() => alert("Erro na ligação ao servidor."))
+      .finally(() => setSubmitting(false));
+  };
+
   return (
     <div>
       <h1 className="text-[#1e3a5f] mb-6">Centro de Feedback</h1>
       <div className="grid md:grid-cols-3 gap-6">
+        
+        {/* COLUNA ESQUERDA: LISTA DINÂMICA DE ALUNOS */}
         <div className="md:col-span-1 bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-[#1e3a5f] mb-4">Selecionar Aluno</h3>
-          <div className="space-y-2">
-            {students.map((student) => (
-              <button
-                key={student.id}
-                onClick={() => setSelectedStudent(student.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                  selectedStudent === student.id ? "bg-[#ff6b35] text-white" : "bg-[#f3f3f5] text-[#1e3a5f] hover:bg-[#e9ebef]"
-                }`}
-              >
-                <div className={`w-8 h-8 ${selectedStudent === student.id ? "bg-white text-[#ff6b35]" : "bg-[#1e3a5f] text-white"} rounded-full flex items-center justify-center text-sm`}>
-                  {student.name.charAt(0)}
-                </div>
-                <div className="text-left flex-1">
-                  <div className="text-sm">{student.name}</div>
-                  <div className={`text-xs ${selectedStudent === student.id ? "text-white/80" : "text-[#717182]"}`}>{student.turma}</div>
-                </div>
-              </button>
-            ))}
-          </div>
+          <h3 className="text-[#1e3a5f] mb-4 font-semibold text-sm uppercase tracking-wider">Selecionar Aluno</h3>
+          
+          {loadingStudents ? (
+            <div className="text-center py-6 text-xs text-[#717182] animate-pulse">🤖 A ler lista de alunos...</div>
+          ) : students.length === 0 ? (
+            <div className="text-xs text-[#717182] italic py-4">Nenhum aluno registado nesta turma.</div>
+          ) : (
+            <div className="space-y-2">
+              {students.map((student) => {
+                const sId = student._id || student.id;
+                const isSelected = selectedStudent && (selectedStudent._id || selectedStudent.id) === sId;
+                const studentName = student.nome || student.name || "Estudante";
+
+                return (
+                  <button
+                    key={sId}
+                    onClick={() => handleSelectStudent(student)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      isSelected ? "bg-[#ff6b35] text-white shadow-md" : "bg-[#f3f3f5] text-[#1e3a5f] hover:bg-[#e9ebef]"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 ${isSelected ? "bg-white text-[#ff6b35]" : "bg-[#1e3a5f] text-white"} rounded-full flex items-center justify-center text-sm font-bold uppercase`}>
+                      {studentName.charAt(0)}
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="text-sm font-semibold truncate">{studentName}</div>
+                      <div className={`text-xs ${isSelected ? "text-white/80" : "text-[#717182]"}`}>{student.turma || "Sem Turma"}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
+        {/* COLUNA DIREITA: CONSTRUTOR DE FORMULÁRIO */}
         <div className="md:col-span-2 bg-white rounded-xl shadow-md p-6">
           {selectedStudent ? (
             <>
-              <h3 className="text-[#1e3a5f] mb-4">Enviar Feedback para {students.find((s) => s.id === selectedStudent)?.name}</h3>
+              <h3 className="text-[#1e3a5f] mb-4 font-bold">
+                Enviar Feedback para {selectedStudent.nome || selectedStudent.name}
+              </h3>
+
+              {/* CONTROLO DINÂMICO DE DISCIPLINA E CARIMBO DE DIA */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5 bg-[#f3f3f5] p-4 rounded-xl border border-[#e9ebef]">
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a5f] uppercase mb-1">Cadeira Conexa</label>
+                  <select
+                    value={selectedDisciplina}
+                    onChange={(e) => setSelectedDisciplina(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-[#e9ebef] text-[#1e3a5f] text-sm rounded-lg focus:outline-none"
+                  >
+                    {selectedStudent.disciplinas && selectedStudent.disciplinas.length > 0 ? (
+                      selectedStudent.disciplinas.map((disc: string, idx: number) => (
+                        <option key={idx} value={disc}>{disc.toUpperCase()}</option>
+                      ))
+                    ) : (
+                      <option value="">Geral (Sem Disciplinas)</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a5f] uppercase mb-1">Dia Letivo da Próxima Aula</label>
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-[#e9ebef] text-[#1e3a5f] text-sm rounded-lg focus:outline-none"
+                  >
+                    {diasSemana.map((dia, idx) => (
+                      <option key={idx} value={dia}>{dia}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* SECTOR MENSAGENS RÁPIDAS */}
               <div className="mb-6">
-                <label className="text-[#1e3a5f] block mb-3">Mensagens Rápidas</label>
+                <label className="text-[#1e3a5f] block mb-2 text-sm font-semibold">Mensagens Rápidas</label>
                 <div className="grid grid-cols-1 gap-2">
                   {quickMessages.map((msg, index) => (
                     <button
                       key={index}
                       onClick={() => setMessage(msg)}
-                      className="text-left p-3 bg-[#1e3a5f]/5 text-[#1e3a5f] rounded-lg hover:bg-[#1e3a5f]/10 transition-colors text-sm"
+                      className="text-left p-3 bg-[#1e3a5f]/5 text-[#1e3a5f] rounded-lg hover:bg-[#1e3a5f]/10 transition-colors text-xs font-medium border border-transparent hover:border-[#1e3a5f]/10"
                     >
                       {msg}
                     </button>
@@ -956,26 +1082,31 @@ function FeedbackView() {
                 </div>
               </div>
 
+              {/* TEXTAREA MENSAGEM */}
               <div className="mb-4">
-                <label className="text-[#1e3a5f] block mb-3">Mensagem Personalizada</label>
+                <label className="text-[#1e3a5f] block mb-2 text-sm font-semibold">Mensagem Personalizada</label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full h-32 p-4 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] focus:outline-none focus:ring-2 focus:ring-[#ff6b35] resize-none"
-                  placeholder="Escreva o seu feedback..."
+                  className="w-full h-32 p-4 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] text-sm focus:outline-none focus:ring-2 focus:ring-[#ff6b35] resize-none"
+                  placeholder="Escreva o seu conselho pedagógico para ficar ativo até ao dia da aula..."
                 />
               </div>
 
+              {/* BOTÃO ENVIAR */}
               <button
-                disabled={!message.trim()}
-                className="flex items-center gap-2 px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50"
+                onClick={handleSendFeedback}
+                disabled={!message.trim() || submitting || !selectedDisciplina}
+                className="flex items-center gap-2 px-6 py-3 bg-[#ff6b35] text-white text-sm font-bold rounded-lg hover:bg-[#ff5722] transition-colors shadow-md disabled:opacity-50"
               >
                 <Send className="w-5 h-5" />
-                Enviar Feedback
+                {submitting ? "A registar nota..." : "Enviar Feedback"}
               </button>
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-[#717182]">Selecione um aluno para enviar feedback</div>
+            <div className="h-48 flex items-center justify-center text-[#717182] italic bg-gray-50 rounded-xl border border-dashed">
+              Selecione um estudante na barra lateral esquerda para redigir o feedback.
+            </div>
           )}
         </div>
       </div>

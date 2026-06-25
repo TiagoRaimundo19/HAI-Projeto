@@ -5,3 +5,13 @@ No aluno drop-down das escolas
 Knowledge vault:
 
 Meter audio. E um melhor feedback
+
+
+Bot de estudo:
+
+Melhorar UI (meter pastas ou assim)
+
+Melhorar talvez a interação em si
+
+
+Melhorar feedback no geral, n ser so pop ups do browser

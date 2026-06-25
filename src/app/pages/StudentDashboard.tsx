@@ -58,8 +58,8 @@ export function StudentDashboard() {
       onClick: () => setActiveView("duvidas"),
     },
     {
-      icon: <Inbox className="w-5 h-5" />,
-      label: "Feedback do Professor",
+      icon: <MessageSquare className="w-5 h-5" />,
+      label: "Caixa de Feedback",
       active: activeView === "feedback",
       onClick: () => setActiveView("feedback"),
     },
@@ -110,73 +110,159 @@ export function StudentDashboard() {
 // BOT DE ESTUDO (CHAT VIEW)
 // =========================================================================
 function ChatView() {
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "ai", text: "Olá! Sou o teu assistente de estudo. Posso ajudar-te com questões sobre os materiais fornecidos pelo professor. Em que posso ajudar?" },
-    { id: 2, sender: "user", text: "Podes explicar-me o conceito de derivadas?" },
-    { id: 3, sender: "ai", text: "Com base nos slides do professor, a derivada representa a taxa de variação instantânea de uma função. No slide 12, o professor explica que geometricamente, a derivada num ponto é o declive da reta tangente à curva nesse ponto. Queres que aprofunde algum aspeto específico?" },
-  ]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const studentId = localStorage.getItem("studentId");
 
-    setMessages([...messages, { id: messages.length + 1, sender: "user", text: input }]);
+  // 1. Carrega o histórico completo da base de dados ao abrir o componente
+  useEffect(() => {
+    if (!studentId) return;
+
+    fetch(`http://localhost:5000/api/alunos/${studentId}/chat/historico`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.historico && data.historico.length > 0) {
+          // Formata os dados vindos da BD para o padrão do teu layout
+          const mensagensFormatadas = data.historico.map((m: any, idx: number) => ({
+            id: m._id || idx,
+            sender: m.sender,
+            text: m.text
+          }));
+          setMessages(mensagensFormatadas);
+        } else {
+          // Mensagem padrão de boas-vindas caso o chat esteja completamente limpo
+          setMessages([
+            {
+              id: 1,
+              sender: "ai",
+              text: "Olá! Sou o teu assistente de estudo. Posso ajudar-te com questões sobre os materiais fornecidos pelo professor. Em que posso ajudar?",
+            },
+          ]);
+        }
+        setLoadingHistory(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao puxar histórico:", err);
+        setLoadingHistory(false);
+      });
+  }, [studentId]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !studentId) return;
+
+    const userMessage = input.trim();
+    
+    // Adiciona a mensagem do utilizador no ecrã instantaneamente
+    const currentMessages = [
+      ...messages,
+      { id: Date.now(), sender: "user", text: userMessage }
+    ];
+    setMessages(currentMessages);
     setInput("");
+    setLoading(true);
 
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { id: prev.length + 1, sender: "ai", text: "Baseado nos materiais do professor, posso ajudar-te com essa questão. Qual é o contexto específico que gostarias de explorar?" },
+    try {
+      const response = await fetch(`http://localhost:5000/api/alunos/${studentId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mensagem: userMessage })
+      });
+
+      const data = await response.json();
+
+      setMessages([
+        ...currentMessages,
+        {
+          id: Date.now() + 1,
+          sender: "ai",
+          text: data.resposta || "Não consegui processar os materiais neste momento."
+        }
       ]);
-    }, 1000);
+    } catch (error) {
+      console.error("Erro no chat:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
       <h1 className="text-[#1e3a5f] mb-6">Bot de Estudo Contextual</h1>
+
       <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-[calc(100vh-200px)]">
         <div className="bg-[#1e3a5f] p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#ff6b35] rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#ff6b35] rounded-full flex items-center justify-center animate-pulse">
               <Lightbulb className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="text-white">Assistente IA</div>
+              <div className="text-white font-medium">Assistente IA</div>
               <div className="text-white/60 text-sm">Baseado nos materiais do professor</div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[70%] p-4 rounded-xl ${message.sender === "user" ? "bg-[#ff6b35] text-white" : "bg-[#f3f3f5] text-[#1e3a5f]"}`}>
-                {message.text}
+          {loadingHistory ? (
+            <div className="text-center py-8 text-xs text-[#717182] animate-pulse">
+              🤖 A resgatar o teu histórico do servidor...
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[70%] p-4 rounded-xl text-sm leading-relaxed shadow-xs ${
+                    message.sender === "user"
+                      ? "bg-[#ff6b35] text-white rounded-br-none"
+                      : "bg-[#f3f3f5] text-[#1e3a5f] rounded-bl-none border border-black/5"
+                  }`}
+                >
+                  {message.text}
+                </div>
+              </div>
+            ))
+          )}
+          
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-[#f3f3f5] text-[#717182] text-xs italic p-3 rounded-xl animate-pulse">
+                🤖 O assistente está a analisar os documentos...
               </div>
             </div>
-          ))}
+          )}
         </div>
 
-        <div className="border-t border-[#e9ebef] p-4">
+        <div className="border-t border-[#e9ebef] p-4 bg-gray-50/50">
           <div className="flex gap-3">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSend()}
-              className="flex-1 px-4 py-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] focus:outline-none"
+              onKeyPress={(e) => e.key === "Enter" && !loading && handleSend()}
+              className="flex-1 px-4 py-3 bg-white border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] text-sm focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
               placeholder="Faz a tua pergunta sobre os materiais..."
+              disabled={loading || loadingHistory}
             />
-            <button onClick={handleSend} disabled={!input.trim()} className="px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50">
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || loading || loadingHistory}
+              className="px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-all shadow-md disabled:opacity-40"
+            >
               <Send className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-xs text-[#717182] mt-2">💡 As respostas são baseadas exclusivamente nos slides e materiais do teu professor</p>
+          <p className="text-xs text-[#717182] mt-2 font-medium">
+            💡 As respostas são baseadas exclusivamente nos slides e materiais do teu professor
+          </p>
         </div>
       </div>
     </div>
   );
 }
+
 
 // =========================================================================
 // 🎯 ARENA DE DESAFIO - MODE DEBUNKING (CONECTADA À BD REAL)
@@ -370,37 +456,128 @@ function DebunkingArenaView() {
 // CAIXA DE INBOX DE FEEDBACK
 // =========================================================================
 function FeedbackInboxView() {
-  const feedbacks = [
-    { id: 1, from: "Prof. Carlos Silva", message: "Excelente progresso esta semana! Continue assim.", date: "05/05/2026", time: "14:30", read: false },
-    { id: 2, from: "Prof. Carlos Silva", message: "Sugiro rever o material sobre derivadas antes do próximo teste.", date: "03/05/2026", time: "10:15", read: true },
-    { id: 3, from: "Prof. Carlos Silva", message: "Bom trabalho no desafio de debunking! Identificaste todos os erros corretamente.", date: "01/05/2026", time: "16:45", read: true },
-  ];
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const studentId = localStorage.getItem("studentId");
+
+  // 1. Carrega os feedbacks pedagógicos ativos da base de dados
+  useEffect(() => {
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
+
+    fetch(`http://localhost:5000/api/alunos/${studentId}/feedback/listar`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.feedbacks) {
+          setFeedbacks(data.feedbacks);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao ir buscar a caixa de feedback:", err);
+        setLoading(false);
+      });
+  }, [studentId]);
+
+  // Helper para formatar a data exatamente como vês na imagem (DD/MM/YYYY às HH:MM)
+  const formatarDataVisual = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      const dia = String(d.getDate()).padStart(2, "0");
+      const mes = String(d.getMonth() + 1).padStart(2, "0");
+      const ano = d.getFullYear();
+      const horas = String(d.getHours()).padStart(2, "0");
+      const minutos = String(d.getMinutes()).padStart(2, "0");
+      return `${dia}/${mes}/${ano} às ${horas}:${minutos}`;
+    } catch {
+      return "Data indisponível";
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-[#717182] font-medium animate-pulse">
+        🤖 A abrir o seu dossiê de feedback pedagógico...
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h1 className="text-[#1e3a5f] mb-6">Caixa de Entrada de Feedback</h1>
-      <div className="grid gap-4">
-        {feedbacks.map((feedback) => (
-          <div key={feedback.id} className={`bg-white rounded-xl shadow-md p-6 transition-all hover:shadow-lg ${!feedback.read ? "border-l-4 border-[#ff6b35]" : ""}`}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#1e3a5f] text-white rounded-full flex items-center justify-center">
-                  {feedback.from.split(" ")[1].charAt(0)}
-                </div>
-                <div>
-                  <div className="text-[#1e3a5f] flex items-center gap-2">
-                    {feedback.from}
-                    {!feedback.read && <span className="px-2 py-0.5 bg-[#ff6b35] text-white text-xs rounded-full">Novo</span>}
-                  </div>
-                  <div className="text-sm text-[#717182]">{feedback.date} às {feedback.time}</div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-[#f3f3f5] p-4 rounded-lg">
-              <p className="text-[#1e3a5f]">{feedback.message}</p>
-            </div>
+    <div className="max-w-5xl mx-auto">
+      {/* Título Principal */}
+      <div className="mb-6">
+        <h1 className="text-[#1e3a5f] text-2xl font-bold">Caixa de Entrada de Feedback</h1>
+        <p className="text-sm text-[#717182] mt-1">
+          Conselhos e direções exclusivas partilhadas pelos teus professores para te preparares para as próximas aulas.
+        </p>
+      </div>
+
+      {/* Lista de Mensagens */}
+      <div className="space-y-4">
+        {feedbacks.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-md p-8 text-center text-[#717182] italic border border-gray-100">
+            A tua caixa de entrada está limpa. Nenhum feedback registado para as próximas aulas! 🌟
           </div>
-        ))}
+        ) : (
+          feedbacks.map((item, index) => {
+            // O primeiro item (índice 0) ganha o destaque de "Novo" tal como na imagem_3e474a.png
+            const isNew = index === 0;
+            const profName = item.professor?.nome || "Professor";
+            const primeiraLetra = profName.charAt(0).toUpperCase();
+
+            return (
+              <div
+                key={item._id || index}
+                className={`bg-white rounded-xl shadow-md p-5 transition-all hover:scale-[1.005] border border-gray-100/80 relative overflow-hidden ${
+                  isNew ? "border-l-4 border-l-[#ff6b35]" : ""
+                }`}
+              >
+                
+                {/* Cabeçalho do Card: Informações do Stor e Data */}
+                <div className="flex items-center gap-4 mb-3">
+                  {/* Avatar do Professor */}
+                  <div className="w-10 h-10 bg-[#1e3a5f] text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                    {primeiraLetra}
+                  </div>
+
+                  {/* Nome, Badge e Data */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[#1e3a5f] font-semibold text-sm">
+                        Prof. {profName}
+                      </span>
+                      
+                      {/* 🎯 BADGE DA DISCIPLINA INSERIDA EXPLICITAMENTE AQUI */}
+                      <span className="text-[10px] bg-[#1e3a5f]/10 text-[#1e3a5f] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider border border-[#1e3a5f]/10">
+                        {item.disciplina || "GERAL"}
+                      </span>
+
+                      {/* Tag Novo (Apenas para a última mensagem recebida) */}
+                      {isNew && (
+                        <span className="bg-[#ff6b35] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wide">
+                          Novo
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Data de Envio formatada */}
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {formatarDataVisual(item.criadoEm)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bloco de Mensagem Pedagógica */}
+                <div className="bg-[#f3f3f5] rounded-xl p-4 text-[#1e3a5f] text-sm leading-relaxed border border-black/5">
+                  {item.mensagem}
+                </div>
+
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
