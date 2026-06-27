@@ -1,17 +1,26 @@
 Set up:
 
-No aluno drop-down das escolas
+No aluno drop-down das escolas (David)
 
 Knowledge vault:
 
-Meter audio. E um melhor feedback
+Meter audio. (Marco)
 
+Desafio debunking:
+
+Encontraste 1 de 3 erros, mas selecionou 2 (Jorge)
+
+Não aparecer os desafios no lado do professor (Jorge)
+
+Sinalizar dúvidas:
+
+A IA deve ser um pouco mais restrita (Tiago)
 
 Bot de estudo:
 
-Melhorar UI (meter pastas ou assim)
+Melhorar UI (meter pastas ou assim) (Marco)
 
-Melhorar talvez a interação em si
+Melhorar talvez a interação em si (Marco)
 
 
-Melhorar feedback no geral, n ser so pop ups do browser
+Melhorar feedback no geral, n ser so pop ups do browser (Jorge)
