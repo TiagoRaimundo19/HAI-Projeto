@@ -567,7 +567,7 @@ app.post('/api/alunos/:studentId/debunking/submeter', async (req, res) => {
     const desafio = await DesafioDebunking.findById(desafioId).lean();
     if (!aluno || !desafio) return res.status(404).json({ erro: 'Dados não localizados.' });
 
-    let idsFalsosReais = desafio.tema.toUpperCase() === "DERIVADAS" ? [4, 5, 6] : [1, 3, 4];
+    let idsFalsosReais = desafio.tema.toUpperCase() === "DERIVADAS" ? [4, 5, 6] : [1, 3];
     const errosApanhados = respostasSelecionadas.filter(id => idsFalsosReais.includes(id)).length;
     const sucessoTotal = errosApanhados === idsFalsosReais.length;
 
