@@ -344,7 +344,23 @@ app.post('/api/alunos/:studentId/sinalizar-dificuldade', async (req, res) => {
     if (!tema || !tema.trim()) return res.status(400).json({ erro: 'O tema não pode estar vazio!' });
 
     const dataAula = calcularDataProximaAula(diaSemana);
-    const promptModeracao = `Analisa o tópico de dúvida: Disciplina: "${disciplina}", Tópico: "${tema}". Responde estritamente com JSON: {"valido": true, "motivo": "frase"}`;
+    const promptModeracao = `
+      És um moderador de conteúdo académico extremamente estrito e intolerante a comportamentos infantis numa plataforma universitária.
+      Analisa o seguinte tópico de dúvida submetido por um aluno:
+      - Disciplina: "${disciplina}"
+      - Tópico Submetido: "${tema}"
+
+      REGRAS DE VALIDAÇÃO OBRIGATÓRIAS:
+      1. Se o tópico contiver QUALQUER tipo de asneira, palavrão, insulto, calão vulgar ou referências sexuais/anatómicas explícitas, tens de marcar obrigatoriamente como "valido": false.
+      2. Se o tópico for uma piada, spam, caracteres aleatórios (ex: "asdasd", "12345") ou completamente sem sentido para o contexto universitário de ${disciplina}, marca como "valido": false.
+      3. Só deves marcar como "valido": true se o texto for um conceito de estudo real, uma dúvida legítima, um capítulo da matéria ou um termo técnico sério.
+
+      Responde RIGOROSAMENTE apenas com um objeto JSON limpo (sem blocos de código markdown \`\`\`json):
+      {
+        "valido": false,
+        "motivo": "Rejeitado: O termo inserido contém calão, linguagem ofensiva ou inadequada para o ambiente universitário."
+      }
+    `;
 
     let avaliacao;
     try {
