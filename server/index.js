@@ -10,7 +10,7 @@ const { GoogleGenAI } = require('@google/genai');
 
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-// ── YOUR ADDITION: Cloudinary ─────────────────────────────────────────────
+// ── Cloudinary ─────────────────────────────────────────────
 const cloudinary = require('cloudinary').v2;
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -19,7 +19,7 @@ cloudinary.config({
 });
 
 // =========================================================================
-// 🗄️ MODELOS DA BASE DE DADOS
+// MODELOS DA BASE DE DADOS
 // =========================================================================
 const Duvida = require('./models/Duvida'); 
 const Professor = require('./models/Professor');
@@ -33,7 +33,7 @@ const FeedbackProfessor = require('./models/FeedbackProfessor');
 const Conversa = require('./models/Conversa'); // THEIRS
 
 // =========================================================================
-// ⚙️ CONFIGURAÇÕES E INICIALIZAÇÃO DO SERVIDOR
+// CONFIGURAÇÕES E INICIALIZAÇÃO DO SERVIDOR
 // =========================================================================
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,7 +53,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error('❌ Erro ao ligar ao MongoDB:', err));
 
 // =========================================================================
-// 🛠️ FUNÇÕES HELPER E ARMAZENAMENTO DE FICHEIROS (MULTER)
+// FUNÇÕES HELPER E ARMAZENAMENTO DE FICHEIROS (MULTER)
 // =========================================================================
 
 const storage = multer.diskStorage({
@@ -116,7 +116,7 @@ app.get('/', (req, res) => {
 });
 
 // =========================================================================
-// 👨‍🏫 ROTAS: PROFESSOR (LOGIN, SIGNUP E GESTÃO)
+// ROTAS: PROFESSOR (LOGIN, SIGNUP E GESTÃO)
 // =========================================================================
 
 app.post('/api/professores/login', async (req, res) => {
@@ -177,7 +177,7 @@ app.get('/api/professores/:teacherId/alunos', async (req, res) => {
   }
 });
 
-// ── YOUR ADDITION: escolas route ──────────────────────────────────────────
+// ── escolas route ──────────────────────────────────────────
 app.get('/api/escolas', async (req, res) => {
   try {
     const professores = await Professor.find(
@@ -192,7 +192,7 @@ app.get('/api/escolas', async (req, res) => {
 });
 
 // =========================================================================
-// 🎓 ROTAS: ALUNO (AUTENTICAÇÃO E PERFIL)
+// ROTAS: ALUNO (AUTENTICAÇÃO E PERFIL)
 // =========================================================================
 
 app.post('/api/alunos/registar', async (req, res) => {
@@ -257,7 +257,7 @@ app.get('/api/alunos/perfil/:id', async (req, res) => {
 });
 
 // =========================================================================
-// 📚 ROTAS: KNOWLEDGE VAULT
+// ROTAS: KNOWLEDGE VAULT
 // =========================================================================
 
 app.get('/api/professores/:teacherId/materiais', async (req, res) => {
@@ -281,7 +281,7 @@ app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), a
     let textoExtraido = '';
     let tipo = '';
 
-    // ── OLD SYSTEM: extract text ──────────────────────────────────────────
+    // ── extract text ──────────────────────────────────────────
     if (ext === '.pdf') {
       const dataBuffer = fs.readFileSync(req.file.path);
       const dadosPdf = await pdfParse(dataBuffer);
@@ -291,7 +291,7 @@ app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), a
       textoExtraido = await extrairTextoPPTX(req.file.path);
       tipo = 'PPTX';
     } else if (ext === '.mp3' || ext === '.wav' || ext === '.m4a') {
-      // THEIRS: audio transcription with Gemini
+      // audio transcription with Gemini
       tipo = 'Áudio';
       console.log(`🎵 [AUDIO INDEX] A processar ficheiro de som (${ext}) com Gemini 2.5 Flash...`);
       try {
@@ -321,7 +321,7 @@ app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), a
       return res.status(400).json({ erro: 'Não foi possível extrair texto do ficheiro.' });
     }
 
-    // ── YOUR ADDITION A: upload to Cloudinary ────────────────────────────
+    // ── upload to Cloudinary ────────────────────────────
     let publicUrl = null;
     let cloudinaryPublicId = null;
     try {
@@ -339,7 +339,7 @@ app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), a
       console.error('⚠️ Cloudinary upload falhou (sistema antigo continua ativo):', cloudErr.message);
     }
 
-    // ── YOUR ADDITION B: upload to Gemini File API ───────────────────────
+    // ── upload to Gemini File API ───────────────────────
     let geminiFileUri = null;
     let geminiFileMimeType = null;
     try {
@@ -392,7 +392,6 @@ app.delete('/api/materiais/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const material = await Material.findById(id).lean();
-    // YOUR ADDITION: also delete from Cloudinary
     if (material && material.cloudinaryPublicId) {
       try {
         await cloudinary.uploader.destroy(material.cloudinaryPublicId, { resource_type: 'raw' });
@@ -409,7 +408,7 @@ app.delete('/api/materiais/:id', async (req, res) => {
 });
 
 // =========================================================================
-// 🔥 ROTAS: PRÉ-AULA (SINALIZAÇÃO DE DÚVIDAS E HEATMAP TÉRMICO)
+// ROTAS: PRÉ-AULA (SINALIZAÇÃO DE DÚVIDAS E HEATMAP TÉRMICO)
 // =========================================================================
 
 app.post('/api/alunos/:studentId/sinalizar-dificuldade', async (req, res) => {
@@ -498,7 +497,7 @@ app.get('/api/professores/:teacherId/heatmap', async (req, res) => {
 });
 
 // =========================================================================
-// 🎯 ROTAS: DEBUNKING
+// ROTAS: DEBUNKING
 // =========================================================================
 
 app.post('/api/professores/:teacherId/debunking/lancar', async (req, res) => {
@@ -547,51 +546,156 @@ app.get('/api/professores/:teacherId/debunking/relatorio', async (req, res) => {
 app.get('/api/alunos/:studentId/debunking/desafio', async (req, res) => {
   try {
     const { studentId } = req.params;
+
     const aluno = await Aluno.findById(studentId).lean();
     if (!aluno) return res.status(404).json({ erro: 'Aluno não encontrado.' });
-    const desafio = await DesafioDebunking.findOne({ anoEscolar: aluno.anoEscolar, ativo: true }).sort({ criadoEm: -1 }).lean();
+
+    const desafio = await DesafioDebunking.findOne({ anoEscolar: aluno.anoEscolar, ativo: true }).sort({ criadoEm: -1 });
     if (!desafio) return res.status(200).json({ desafio: null });
-    const bibliotecaDeTemas = {
-      "DERIVADAS": [
-        { id: 1, texto: "A derivada de uma função f(x) = x² é 2x.", incorreta: false },
-        { id: 2, texto: "Isto acontece porque quando aplicamos a regra da potência, multiplicamos o expoente pela base e subtraímos 1 ao expoente.", incorreta: false },
-        { id: 3, texto: "Portanto, temos 2 × x²⁻¹ = 2x.", incorreta: false },
-        { id: 4, texto: "A derivada também pode ser interpretada como a área sob a curva da função original.", incorreta: true }, 
-        { id: 5, texto: "Se uma função possui uma descontinuidade num ponto isolado, ela é obrigatoriamente derivável nesse ponto.", incorreta: true }, 
-        { id: 6, texto: "A derivada de uma constante isolada resulta sempre no valor da própria constante original.", incorreta: true } 
-      ]
-    };
-    let frasesCompletas = bibliotecaDeTemas[desafio.tema.toUpperCase()] || [
-      { id: 1, texto: `O cálculo de ${desafio.tema} serve para inverter matrizes nulas.`, incorreta: true },
-      { id: 2, texto: `É possível aplicar os teoremas fundamentais de ${desafio.tema} em problemas científicos.`, incorreta: false },
-      { id: 3, texto: "Todos os limites laterais tendem ao infinito por definição padrão.", incorreta: true }
-    ];
-    return res.status(200).json({ desafioId: desafio._id, tema: desafio.tema, disciplina: desafio.disciplina, frases: frasesCompletas.map(f => ({ id: f.id, texto: f.texto })) });
+
+    let frasesFinais = desafio.frases || [];
+
+    if (frasesFinais.length === 0) {
+      console.log(`🤖 [DEBUNKING] A gerar perguntas dinâmicas para o tema: ${desafio.tema}`);
+      
+      const promptDebunking = `
+        És um professor experiente na disciplina de ${desafio.disciplina.toUpperCase()}.
+        Cria um desafio de "Debunking" (caça ao erro) para alunos do ${aluno.anoEscolar} sobre o tema: "${desafio.tema}".
+
+        REGRAS DE GERAÇÃO MANDATÓRIAS:
+        1. Deves gerar exatamente 6 frases ou afirmações sobre este tema.
+        2. Exatamente 3 frases devem ser VERDADEIRAS e cientificamente corretas (incorreta: false).
+        3. Exatamente 3 frases devem conter ERROS conceituais ou rasteiras sobre o tema (incorreta: true).
+        4. O nível de dificuldade deve ser adaptado para alunos do ${aluno.anoEscolar}.
+
+        Responde RIGOROSAMENTE apenas com um array JSON limpo, sem formatação markdown:
+        [
+          { "id": 1, "texto": "Frase de exemplo...", "incorreta": false }
+        ]
+      `.trim();
+
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: promptDebunking
+        });
+
+        if (response.text) {
+          const jsonLimpo = response.text.trim().replace(/^```json/, "").replace(/```$/, "");
+          const frasesGeradas = JSON.parse(jsonLimpo);
+
+          frasesFinais = frasesGeradas.map((f, idx) => {
+            const deFactoIncorreta = 
+              f.incorreta === true || f.incorreta === 'true' ||
+              f.incorreto === true || f.incorreto === 'true' ||
+              f.falsa === true || f.falsa === 'true' ||
+              f.falso === true || f.falso === 'true' ||
+              f.errada === true || f.errada === 'true' ||
+              f.errado === true || f.errado === 'true' ||
+              f.correta === false || f.correta === 'false' ||
+              f.certo === false || f.certo === 'false';
+
+            return {
+              id: Number(f.id || idx + 1),
+              texto: String(f.texto || f.text || f.frase || f.afirmacao),
+              incorreta: deFactoIncorreta
+            };
+          });
+
+          await DesafioDebunking.updateOne(
+            { _id: desafio._id }, 
+            { $set: { frases: frasesFinais } }
+          );
+          
+          console.log(`✅ [DEBUNKING] Mapeamento gravado com sucesso para o desafio ${desafio._id}`);
+        }
+      } catch (erroGemini) {
+        console.error("❌ Falha ao chamar o Gemini para Debunking:", erroGemini);
+        frasesFinais = [
+          { id: 1, texto: `O estudo de ${desafio.tema} aplica-se no quotidiano científico.`, incorreta: false },
+          { id: 2, texto: `Todos os conceitos de ${desafio.tema} são limitados a matrizes nulas.`, incorreta: true },
+          { id: 3, texto: `Existem teoremas fundamentais associados a ${desafio.tema}.`, incorreta: false }
+        ];
+      }
+    }
+
+    // Oculta o gabarito (campo incorreta) para o aluno não fazer batota pelo F12
+    const frasesParaAluno = frasesFinais.map(f => ({
+      id: Number(f.id),
+      texto: f.texto
+    }));
+
+    return res.status(200).json({ 
+      desafioId: desafio._id, 
+      tema: desafio.tema, 
+      disciplina: desafio.disciplina, 
+      frases: frasesParaAluno 
+    });
+
   } catch (error) {
-    return res.status(500).json({ erro: 'Erro ao carregar o desafio.' });
+    console.error('Erro ao carregar o desafio de debunking:', error);
+    return res.status(500).json({ erro: 'Erro interno ao carregar o desafio.' });
   }
 });
 
 app.post('/api/alunos/:studentId/debunking/submeter', async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { desafioId, respostasSelecionadas } = req.body;
+    
+    const { desafioId, respostasSelecionadas } = req.body; 
+
     const aluno = await Aluno.findById(studentId).lean();
     const desafio = await DesafioDebunking.findById(desafioId).lean();
-    if (!aluno || !desafio) return res.status(404).json({ erro: 'Dados não localizados.' });
-    let idsFalsosReais = desafio.tema.toUpperCase() === "DERIVADAS" ? [4, 5, 6] : [1, 3]; // THEIRS
-    const errosApanhados = respostasSelecionadas.filter(id => idsFalsosReais.includes(id)).length;
-    const sucessoTotal = errosApanhados === idsFalsosReais.length;
-    const novaTentativa = new TentativaDebunking({ aluno: studentId, professor: desafio.professor, disciplina: desafio.disciplina, anoEscolar: aluno.anoEscolar, tema: desafio.tema, errorsFound: errosApanhados, totalErrors: idsFalsosReais.length, success: sucessoTotal });
+    
+    if (!aluno || !desafio) {
+      return res.status(404).json({ erro: 'Dados não localizados no sistema.' });
+    }
+
+    // Normaliza os IDs vindos do aluno para números puros
+    const respostasIds = (respostasSelecionadas || []).map(id => Number(id));
+    
+    // Puxa as frases agora validadas pelo Schema
+    const frasesDoDesafio = desafio.frases || [];
+
+    // Filtra os IDs das mentiras reais guardadas na base de dados
+    const idsFalsosReais = frasesDoDesafio
+      .filter(f => f.incorreta === true)
+      .map(f => Number(f.id));
+
+    console.log(`🔍 [VALIDAÇÃO] Aluno enviou: [${respostasIds}] | Erros Reais na BD: [${idsFalsosReais}]`);
+
+    const errosApanhados = respostasIds.filter(id => idsFalsosReais.includes(id)).length;
+    
+    const sucessoTotal = errosApanhados === idsFalsosReais.length && respostasIds.length === idsFalsosReais.length;
+
+    const novaTentativa = new TentativaDebunking({ 
+      aluno: studentId, 
+      professor: desafio.professor, 
+      disciplina: desafio.disciplina, 
+      anoEscolar: aluno.anoEscolar, 
+      tema: desafio.tema, 
+      errorsFound: errosApanhados, 
+      totalErrors: idsFalsosReais.length, 
+      success: sucessoTotal 
+    });
+    
     await novaTentativa.save();
-    return res.status(200).json({ errorsFound: errosApanhados, totalErrors: idsFalsosReais.length, success: sucessoTotal });
+
+    return res.status(200).json({ 
+      errorsFound: errosApanhados, 
+      totalErrors: idsFalsosReais.length, 
+      success: sucessoTotal,
+      idsFalsosReais 
+    });
+
   } catch (error) {
-    return res.status(500).json({ erro: 'Erro ao computar resposta.' });
+    console.error('❌ Erro ao computar submissão de debunking:', error);
+    return res.status(500).json({ erro: 'Erro interno ao computar resposta do desafio.' });
   }
 });
 
 // =========================================================================
-// 🤖 ROTAS: BOT DE ESTUDO CONTEXTUAL (THEIRS: multi-conversation system)
+// ROTAS: BOT DE ESTUDO CONTEXTUAL (THEIRS: multi-conversation system)
 // =========================================================================
 
 app.post('/api/alunos/:studentId/conversas/criar', async (req, res) => {
@@ -692,7 +796,6 @@ app.post('/api/conversas/:conversaId/mensagens', async (req, res) => {
       - CENÁRIO D: Se for fora das cadeiras e sem materiais, indica que não tens documentos sobre esse assunto para o ${aluno.anoEscolar}.
     `;
 
-    // YOUR ADDITION: use Gemini File API if available, fall back to text
     const filePartes = materiaisDisponiveis
       .filter(mat => mat.geminiFileUri)
       .map(mat => ({ fileData: { mimeType: mat.geminiFileMimeType, fileUri: mat.geminiFileUri } }));
@@ -750,7 +853,7 @@ app.post('/api/duvidas', async (req, res) => {
 });
 
 // =========================================================================
-// 📢 MÓDULO: CENTRO DE FEEDBACK
+// MÓDULO: CENTRO DE FEEDBACK
 // =========================================================================
 
 app.post('/api/professores/:teacherId/feedback/enviar', async (req, res) => {

@@ -9,5 +9,4 @@ const TemaDificuldadeSchema = new mongoose.Schema({
   criadoEm: { type: Date, default: Date.now }
 }, { timestamps: true });
 
-// Guardado de forma limpa na coleção 'temas_dificuldade'
 module.exports = mongoose.model('TemaDificuldade', TemaDificuldadeSchema, 'temas_dificuldade');

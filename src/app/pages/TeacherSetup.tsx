@@ -146,7 +146,7 @@ export function TeacherSetup() {
             </div>
           </div>
 
-          {/* NOVO BLOCO: SELECIONAR ANOS ESCOLARES */}
+          {/*  SELECIONAR ANOS ESCOLARES */}
           <div className="mb-8">
             <label className="text-[#1e3a5f] block mb-3 font-medium">Anos Escolares que Leciona</label>
             <div className="flex flex-wrap gap-2">
@@ -170,7 +170,7 @@ export function TeacherSetup() {
             </div>
           </div>
 
-          {/* NOVO BLOCO: ADICIONAR TURMAS DINÂMICAS */}
+          {/* ADICIONAR TURMAS DINÂMICAS */}
           <div className="mb-8 bg-[#f8f9fa] p-5 rounded-xl border border-[#e9ebef]">
             <label className="text-[#1e3a5f] block mb-2 font-medium">Gestão de Turmas</label>
             <p className="text-xs text-[#717182] mb-3">Adicione todas as turmas que acompanha este ano (Ex: Turma A, Turma C)</p>

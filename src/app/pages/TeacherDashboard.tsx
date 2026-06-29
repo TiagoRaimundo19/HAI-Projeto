@@ -226,7 +226,7 @@ function StudentsView() {
 }
 
 // =========================================================================
-// 📂 KNOWLEDGE VAULT (MODIFICADO COM O MULTIPART FORM-DATA REAL)
+// KNOWLEDGE VAULT (MODIFICADO COM O MULTIPART FORM-DATA REAL)
 // =========================================================================
 function VaultView() {
   const [materials, setMaterials] = useState<any[]>([]);
@@ -237,7 +237,6 @@ function VaultView() {
   const [selectedDisciplina, setSelectedDisciplina] = useState("");
   const [teacherDisciplinas, setTeacherDisciplinas] = useState<string[]>([]);
   
-  // 🎯 NOVOS ESTADOS PARA O ANO ESCOLAR
   const [selectedAnoEscolar, setSelectedAnoEscolar] = useState("");
   const [teacherAnosEscolares, setTeacherAnosEscolares] = useState<string[]>([]);
 
@@ -267,7 +266,6 @@ function VaultView() {
             setSelectedDisciplina(data.professor.disciplinas[0]);
           }
         }
-        // 🎯 CAPTURA OS ANOS ESCOLARES DO PERFIL DO PROFESSOR
         if (data.professor?.anosEscolares) {
           setTeacherAnosEscolares(data.professor.anosEscolares);
           if (data.professor.anosEscolares.length > 0) {
@@ -290,7 +288,7 @@ function VaultView() {
     formData.append("pdf", file); 
     formData.append("nome", file.name);
     formData.append("disciplina", selectedDisciplina);
-    formData.append("anoEscolar", selectedAnoEscolar); // 🎯 ENVIA O ANO ESCOLAR
+    formData.append("anoEscolar", selectedAnoEscolar); 
 
     fetch(`http://localhost:5000/api/professores/${teacherId}/materiais/upload`, {
       method: "POST",
@@ -371,7 +369,7 @@ function VaultView() {
             ))}
           </select>
 
-          {/* 🎯 NOVO DROPDOWN: Ano Escolar */}
+          {/* Ano Escolar */}
           <select
             value={selectedAnoEscolar}
             onChange={(e) => setSelectedAnoEscolar(e.target.value)}
@@ -469,7 +467,6 @@ function HeatmapView() {
 
   const teacherId = localStorage.getItem("teacherId");
 
-  // 🗓️ Função Helper local para calcular a data YYYY-MM-DD da aula com base no dia da semana
   const calcularDataAula = (disciplinaNome: string) => {
     const estruturaDias = {
       "MATEMATICA": "Segunda-feira",
@@ -488,7 +485,6 @@ function HeatmapView() {
     return res.toISOString().split('T')[0];
   };
 
-  // 1. Carrega as configurações iniciais de filtros do perfil do professor
   useEffect(() => {
     if (!teacherId) return;
 
@@ -509,7 +505,6 @@ function HeatmapView() {
       .catch((err) => console.error("Erro ao ler perfil do professor:", err));
   }, [teacherId]);
 
-  // 2. ⚡ DISPARO REATIVO AUTOMÁTICO: Roda instantaneamente sempre que muda a disciplina ou o ano!
   useEffect(() => {
     if (!teacherId || !selectedDisciplina || !selectedAnoEscolar) return;
 
@@ -518,7 +513,6 @@ function HeatmapView() {
     // Calcula a data real da aula que estamos a analisar esta semana
     const dataAlvoAula = calcularDataAula(selectedDisciplina);
 
-    // Envia os 3 filtros por Query Parameters para o Express
     fetch(`http://localhost:5000/api/professores/${teacherId}/heatmap?disciplina=${selectedDisciplina}&anoEscolar=${selectedAnoEscolar}&dataAula=${dataAlvoAula}`)
       .then((res) => res.json())
       .then((data) => {
@@ -668,7 +662,6 @@ function DebunkingView() {
 
   const teacherId = localStorage.getItem("teacherId");
 
-  // 1. Carrega os filtros (disciplinas e anos) do perfil do docente ao montar o ecrã
   useEffect(() => {
     if (!teacherId) return;
 
@@ -689,7 +682,6 @@ function DebunkingView() {
       .catch((err) => console.error("Erro ao carregar perfil para filtros:", err));
   }, [teacherId]);
 
-  // 2. Procura o relatório real e o tema ativo com base nos dropdowns selecionados
   const carregarRelatorioReal = () => {
     if (!teacherId || !selectedDisciplina || !selectedAnoEscolar) return;
 
@@ -708,12 +700,10 @@ function DebunkingView() {
       });
   };
 
-  // Dispara sempre que o professor muda a disciplina ou o ano
   useEffect(() => {
   carregarRelatorioReal(); 
 }, [teacherId, selectedDisciplina, selectedAnoEscolar]);
 
-  // 3. Submete o novo tema para criar o desafio ativo na BD
   const handleLancarDesafio = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoTemaInput.trim() || !selectedDisciplina || !selectedAnoEscolar) return;
@@ -916,7 +906,6 @@ function FeedbackView() {
     "quinta-feira", "sexta-feira", "sábado", "domingo"
   ];
 
-  // 1. Carrega os alunos reais associados a este professor
   useEffect(() => {
     if (!teacherId) {
       setLoadingStudents(false);
@@ -954,7 +943,6 @@ function FeedbackView() {
     }
   };
 
-  // 2. Dispara o envio real para a rota POST do teu servidor Express
   const handleSendFeedback = () => {
     if (!selectedStudent || !message.trim() || !selectedDisciplina) return;
 

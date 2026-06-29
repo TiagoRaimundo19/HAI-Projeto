@@ -17,7 +17,7 @@ export default function PreClassView() {
 
   const studentId = localStorage.getItem("studentId");
 
-  // 🗓️ Calcula a data YYYY-MM-DD localmente para alinhar perfeitamente com o Backend
+  // Calcula a data YYYY-MM-DD localmente para alinhar perfeitamente com o Backend
   const calcularDataFront = (diaSemana: string) => {
     const dias = { 
       "domingo": 0, "segunda-feira": 1, "terça-feira": 2, 

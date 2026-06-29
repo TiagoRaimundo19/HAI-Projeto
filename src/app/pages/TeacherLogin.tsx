@@ -6,7 +6,6 @@ export function TeacherLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // 1. Estado para guardar a mensagem de erro da BD
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -110,7 +109,7 @@ export function TeacherLogin() {
               Entrar como Professor
             </button>
 
-            {/* 3. O aviso bonito em vermelho caso o estado 'error' tenha algum texto */}
+            {/* O aviso bonito em vermelho caso o estado 'error' tenha algum texto */}
             {error && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-center animate-fade-in">
                 <p className="text-sm font-medium text-red-600">⚠️ {error}</p>

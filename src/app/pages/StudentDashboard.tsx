@@ -123,7 +123,6 @@ function ChatView() {
 
   const studentId = localStorage.getItem("studentId");
 
-  // 1. Carrega a lista de conversas recentes da barra lateral
   const carregarConversasRecentes = (selecionarPrimeira = false) => {
     if (!studentId) return;
     
@@ -149,7 +148,7 @@ function ChatView() {
     carregarConversasRecentes(true);
   }, [studentId]);
 
-  // 2. Carrega as mensagens de uma conversa específica ao clicar nela
+  
   const handleSelectConversa = (conversaId: string) => {
     setActiveConversaId(conversaId);
     setLoadingMessages(true);
@@ -174,7 +173,6 @@ function ChatView() {
       });
   };
 
-  // 3. Cria uma nova sessão limpa de chat ("+ Novo Chat")
   const handleCriarNovaConversa = () => {
     if (!studentId) return;
 
@@ -201,13 +199,11 @@ function ChatView() {
       .catch((err) => console.error("Erro ao abrir nova conversa:", err));
   };
 
-  // 4. Envia a mensagem dentro da thread ativa
   const handleSend = async () => {
   if (!input.trim() || !activeConversaId) return;
 
   const userMessage = input.trim();
   
-  // Imprime imediatamente o balão do utilizador no ecrã
   const currentMessages = [
     ...messages,
     { id: Date.now(), sender: "user", text: userMessage }
@@ -226,7 +222,6 @@ function ChatView() {
 
     const data = await response.json();
 
-    // Imprime o balão de resposta da IA
     setMessages([
       ...currentMessages,
       {
@@ -236,7 +231,6 @@ function ChatView() {
       }
     ]);
 
-    // 🔄 SE A IA GEROU UM TÍTULO NOVO, ATUALIZA A BARRA LATERAL INSTANTANEAMENTE
     if (data.tituloAtualizado) {
       // Re-executa a função que faz o fetch da lista de "Recentes"
       carregarConversasRecentes(false); 
@@ -404,19 +398,19 @@ function ChatView() {
 
 
 // =========================================================================
-// 🎯 ARENA DE DESAFIO - MODE DEBUNKING (CONECTADA À BD REAL)
+// ARENA DE DESAFIO - MODE DEBUNKING (CONECTADA À BD REAL)
 // =========================================================================
 function DebunkingArenaView() {
   const [desafio, setDesafio] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedText, setSelectedText] = useState<string[]>([]);
+  
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resultData, setResultData] = useState<any>(null);
 
   const studentId = localStorage.getItem("studentId");
 
-  // 1. Faz o Fetch dinâmico do desafio ativo lançado pelo professor para a turma deste aluno
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
@@ -437,30 +431,24 @@ function DebunkingArenaView() {
       });
   }, [studentId]);
 
-  const toggleSelection = (text: string) => {
+  const toggleSelection = (id: number) => {
     if (submitted) return; // Bloqueia cliques após submeter
-    setSelectedText((prev) =>
-      prev.includes(text) ? prev.filter((t) => t !== text) : [...prev, text]
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
-  // 2. Envia os IDs das frases selecionadas para validação no Backend
   const handleSubmit = () => {
-    if (selectedText.length === 0 || !desafio) return;
+    if (selectedIds.length === 0 || !desafio) return;
 
     setSubmitting(true);
-
-    // Mapeia o texto selecionado de volta para os IDs reais gerados pelo backend
-    const idsSelecionados = desafio.frases
-      .filter((f: any) => selectedText.includes(f.texto))
-      .map((f: any) => f.id);
 
     fetch(`http://localhost:5000/api/alunos/${studentId}/debunking/submeter`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         desafioId: desafio.desafioId,
-        respostasSelecionadas: idsSelecionados,
+        respostasSelecionadas: selectedIds, // Envia diretamente a lista limpa de IDs
       }),
     })
       .then((res) => res.json())
@@ -476,7 +464,6 @@ function DebunkingArenaView() {
     return <div className="text-center py-12 text-[#717182] animate-pulse font-medium">🤖 A carregar o desafio ativo da tua turma...</div>;
   }
 
-  // Se o professor não tiver nenhum desafio ativo para este ano letivo
   if (!desafio) {
     return (
       <div className="bg-white rounded-xl shadow-md p-8 text-center text-[#717182] italic border border-dashed">
@@ -487,7 +474,7 @@ function DebunkingArenaView() {
 
   return (
     <div>
-      <h1 className="text-[#1e3a5f] mb-6">Arena de Desafio - Mode Debunking</h1>
+      <h1 className="text-[#1e3a5f] mb-6">Arena de Desafio - Modo Debunking</h1>
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <div className="flex items-center gap-4 mb-6">
@@ -519,24 +506,40 @@ function DebunkingArenaView() {
         <div className="bg-[#f3f3f5] p-6 rounded-xl mb-6">
           <h4 className="text-[#1e3a5f] mb-4">Explicação da IA:</h4>
           <div className="space-y-3">
-            {desafio.frases.map((frase: any, index: number) => {
-              const isSelected = selectedText.includes(frase.texto);
+            {desafio.frases.map((frase: any) => {
+              const isSelected = selectedIds.map(Number).includes(Number(frase.id));
+              const isReallyFalse = resultData?.idsFalsosReais?.map(Number).includes(Number(frase.id));
+
+              let cardStyle = "bg-white border border-gray-100 text-[#1e3a5f] hover:bg-[#e9ebef]";
+              
+              if (!submitted) {
+                if (isSelected) cardStyle = "bg-[#ff6b35] text-white shadow-lg font-medium";
+              } else {
+                if (isSelected && isReallyFalse) {
+                  cardStyle = "bg-green-50 border-2 border-green-500 text-green-900 font-medium"; // Acertou na mentira!
+                } else if (isSelected && !isReallyFalse) {
+                  cardStyle = "bg-red-50 border-2 border-red-500 text-red-900"; // Escolheu uma frase que era Verdadeira
+                } else if (!isSelected && isReallyFalse) {
+                  cardStyle = "bg-amber-50 border-2 border-dashed border-amber-400 text-amber-900 font-medium animate-pulse"; // Esqueceu-se de marcar este erro
+                } else {
+                  cardStyle = "bg-gray-50 border border-gray-200 text-gray-400 opacity-60"; // Verdadeiras que ele ignorou bem
+                }
+              }
 
               return (
                 <div
-                  key={index}
-                  onClick={() => toggleSelection(frase.texto)}
-                  className={`p-4 rounded-lg cursor-pointer transition-all ${
-                    isSelected && !submitted
-                      ? "bg-[#ff6b35] text-white shadow-lg font-medium"
-                      : isSelected && submitted
-                      ? "bg-[#1e3a5f] text-white shadow-sm opacity-70"
-                      : "bg-white hover:bg-[#e9ebef]"
-                  } ${submitted ? "cursor-default" : ""}`}
+                  key={frase.id}
+                  onClick={() => toggleSelection(frase.id)}
+                  className={`p-4 rounded-lg transition-all ${cardStyle} ${!submitted ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <p className={isSelected && !submitted ? "text-white" : "text-[#1e3a5f]"}>
-                    {frase.texto}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm leading-relaxed">{frase.texto}</p>
+                    
+                    {/* Ícones explicativos pós-submissão */}
+                    {submitted && isSelected && isReallyFalse && <span className="text-green-600 font-bold text-xs bg-green-200/50 px-2 py-1 rounded flex items-center gap-1">🎯 Detetaste!</span>}
+                    {submitted && isSelected && !isReallyFalse && <span className="text-red-600 font-bold text-xs bg-red-200/50 px-2 py-1 rounded flex items-center gap-1">❌ É Verdade</span>}
+                    {submitted && !isSelected && isReallyFalse && <span className="text-amber-600 font-bold text-xs bg-amber-200/50 px-2 py-1 rounded flex items-center gap-1">⚠️ Devias marcar</span>}
+                  </div>
                 </div>
               );
             })}
@@ -547,7 +550,7 @@ function DebunkingArenaView() {
         {!submitted ? (
           <button
             onClick={handleSubmit}
-            disabled={selectedText.length === 0 || submitting}
+            disabled={selectedIds.length === 0 || submitting}
             className="flex items-center gap-2 px-6 py-3 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff5722] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-bold"
           >
             <Send className="w-5 h-5" />
@@ -555,7 +558,7 @@ function DebunkingArenaView() {
           </button>
         ) : (
           <div className={`border-l-4 p-4 rounded transition-all ${
-            resultData?.success ? "bg-green-500/10 border-green-500" : "bg-amber-500/10 border-amber-500"
+            resultData?.success ? "bg-green-500/10 border-green-500 text-green-900" : "bg-amber-500/10 border-amber-500 text-amber-900"
           }`}>
             <p className="text-[#1e3a5f] font-medium">
               <span className="font-bold">{resultData?.success ? "✓ Desafio concluído com Sucesso Total!" : "○ Desafio concluído!"}</span> Encontraste{" "}
@@ -565,7 +568,6 @@ function DebunkingArenaView() {
         )}
       </div>
 
-      {/* ⚠️ O BLOCO EXIGIDO "COMO FUNCIONA" FOI MANTIDO COMPLETAMENTE IGUAL E INTEGRAL */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <h3 className="text-[#1e3a5f] mb-4">Como Funciona</h3>
         <ul className="space-y-2 text-[#717182]">
@@ -599,7 +601,6 @@ function FeedbackInboxView() {
   const [loading, setLoading] = useState(true);
   const studentId = localStorage.getItem("studentId");
 
-  // 1. Carrega os feedbacks pedagógicos ativos da base de dados
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
@@ -620,7 +621,6 @@ function FeedbackInboxView() {
       });
   }, [studentId]);
 
-  // Helper para formatar a data exatamente como vês na imagem (DD/MM/YYYY às HH:MM)
   const formatarDataVisual = (isoString: string) => {
     try {
       const d = new Date(isoString);
@@ -688,7 +688,7 @@ function FeedbackInboxView() {
                         Prof. {profName}
                       </span>
                       
-                      {/* 🎯 BADGE DA DISCIPLINA INSERIDA EXPLICITAMENTE AQUI */}
+                      {/* BADGE DA DISCIPLINA INSERIDA EXPLICITAMENTE AQUI */}
                       <span className="text-[10px] bg-[#1e3a5f]/10 text-[#1e3a5f] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider border border-[#1e3a5f]/10">
                         {item.disciplina || "GERAL"}
                       </span>

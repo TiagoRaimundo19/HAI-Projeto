@@ -23,7 +23,6 @@ const ProfessorSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
-  // --- NOVOS CAMPOS DINÂMICOS ---
   anosEscolares: {
     type: [String], // Ex: ['10º Ano', '12º Ano']
     default: []
