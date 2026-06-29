@@ -11,6 +11,14 @@ const { GoogleGenAI } = require('@google/genai');
 // CARREGA AS VARIÁVEIS DE AMBIENTE (.env) PRIMEIRO COISA DO FICHEIRO
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 // =========================================================================
 // 🗄️ MODELOS DA BASE DE DADOS
 // =========================================================================
@@ -23,10 +31,9 @@ const DesafioDebunking = require('./models/DesafioDebunking');
 const TentativaDebunking = require('./models/TentativaDebunking');
 const MensagemChat = require('./models/MensagemChat');
 const FeedbackProfessor = require('./models/FeedbackProfessor');
-const Conversa = require('./models/Conversa');
 
 // =========================================================================
-// ⚙️ CONFIGURAÇÕES E INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO!)
+// ⚙️ CONFIGURAÇÕES E INICIALIZAÇÃO DO SERVIDOR
 // =========================================================================
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -34,7 +41,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// 🚀 RESTAURADO: Ativa o servidor para ouvir os pedidos na porta 5000
 app.listen(PORT, () => {
   console.log(`🚀 Servidor a bombar na porta ${PORT}!`);
   console.log(`🌍 Testar no browser: http://localhost:${PORT}`);
@@ -42,7 +48,6 @@ app.listen(PORT, () => {
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Conexão ao Banco de Dados Mongoose
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Conectado com sucesso ao MongoDB Atlas!'))
   .catch(err => console.error('❌ Erro ao ligar ao MongoDB:', err));
@@ -66,7 +71,7 @@ const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const ext = file.originalname.substring(file.originalname.lastIndexOf('.')).toLowerCase();
-    const allowed = ['.pdf', '.pptx', '.mp3', '.wav', '.m4a'];
+    const allowed = ['.pdf', '.pptx', '.mp3', '.wav'];
     if (!allowed.includes(ext)) {
       return cb(new Error('Tipo de ficheiro não suportado'), false);
     }
@@ -111,7 +116,6 @@ function calcularDataProximaAula(diaSemanaExtenso) {
   return resultado.toISOString().split('T')[0]; 
 }
 
-// Rota raíz para teste rápido
 app.get('/', (req, res) => {
   res.send('O servidor do projeto HAI está a correr!');
 });
@@ -188,6 +192,20 @@ app.get('/api/professores/:teacherId/alunos', async (req, res) => {
     res.status(200).json({ students: alunosFiltrados });
   } catch (error) {
     res.status(500).json({ erro: 'Erro ao carregar lista de alunos filtrada.' });
+  }
+});
+
+app.get('/api/escolas', async (req, res) => {
+  try {
+    const professores = await Professor.find(
+      { instituicao: { $exists: true, $ne: "" } },
+      { instituicao: 1 }
+    ).lean();
+
+    const escolas = [...new Set(professores.map(p => p.instituicao).filter(Boolean))];
+    res.status(200).json({ escolas });
+  } catch (error) {
+    res.status(500).json({ erro: 'Erro ao carregar escolas.' });
   }
 });
 
@@ -285,7 +303,7 @@ app.get('/api/professores/:teacherId/materiais', async (req, res) => {
 app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { nome, disciplina, anoEscolar } = req.body; 
+    const { nome, disciplina, anoEscolar } = req.body;
 
     if (!req.file) return res.status(400).json({ erro: 'Por favor, seleciona um ficheiro aceitável!' });
 
@@ -293,83 +311,107 @@ app.post('/api/professores/:teacherId/materiais/upload', upload.single('pdf'), a
     let textoExtraido = '';
     let tipo = '';
 
+    // ── OLD SYSTEM: extract text ──────────────────────────────────────────
     if (ext === '.pdf') {
       const dataBuffer = fs.readFileSync(req.file.path);
       const dadosPdf = await pdfParse(dataBuffer);
       textoExtraido = dadosPdf.text;
       tipo = 'PDF';
-    } 
-    else if (ext === '.pptx') {
+    } else if (ext === '.pptx') {
       textoExtraido = await extrairTextoPPTX(req.file.path);
       tipo = 'PPTX';
-    } 
-    else if (ext === '.mp3' || ext === '.wav' || ext === '.m4a') {
+    } else if (ext === '.mp3' || ext === '.wav') {
+      textoExtraido = 'Ficheiro de áudio multimédia registado.';
       tipo = 'Áudio';
-      console.log(`🎵 [AUDIO INDEX] A processar ficheiro de som (${ext}) com Gemini 2.5 Flash...`);
-      
-      try {
-        const audioBase64 = fs.readFileSync(req.file.path).toString("base64");
-        
-        // 🎯 CORREÇÃO CRÍTICA: .m4a mapeia obrigatoriamente para audio/mp4 na API da Google
-        let mimeType = 'audio/mp3';
-        if (ext === '.wav') mimeType = 'audio/wav';
-        if (ext === '.m4a') mimeType = 'audio/mp4'; 
-
-        const responseAudio = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [
-            {
-              inlineData: {
-                data: audioBase64,
-                mimeType: mimeType
-              }
-            },
-            "Age como um transcrevedor académico de alta precisão. Ouve este áudio e extrai toda a transcrição textual na íntegra, detalhadamente e em Português de Portugal para servir de base de estudo aos alunos. Não resumas, transcreve tudo o que for dito."
-          ]
-        });
-
-        if (responseAudio.text && responseAudio.text.trim().length > 0) {
-          textoExtraido = responseAudio.text.trim();
-          console.log(`✅ [AUDIO INDEX] Transcrição concluída com sucesso!`);
-        } else {
-          textoExtraido = `Conteúdo de áudio multimédia do ficheiro "${nome || req.file.originalname}" registado no sistema.`;
-          console.log(`⚠️ [AUDIO INDEX] Áudio processado, mas a IA devolveu texto vazio.`);
-        }
-
-      } catch (geminiAudioError) {
-        console.error("❌ Erro crítico ao transcrever áudio com Gemini:", geminiAudioError);
-        textoExtraido = 'Ficheiro de áudio multimédia registado (transcrição em fallback de erro).';
-      }
     }
 
+    if ((ext === '.pdf' || ext === '.pptx') && (!textoExtraido || textoExtraido.trim().length < 20)) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ erro: 'Não foi possível extrair texto do ficheiro.' });
+    }
+
+    // ── NEW SYSTEM A: upload to Cloudinary for public download URL ────────
+    let publicUrl = null;
+    let cloudinaryPublicId = null;
+    try {
+      const cloudResult = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: 'raw',
+        folder: 'hai-projeto',
+        public_id: `${Date.now()}-${req.file.originalname}`,
+        use_filename: true,
+        unique_filename: false,
+      });
+      publicUrl = cloudResult.secure_url;
+      cloudinaryPublicId = cloudResult.public_id;
+      console.log(`☁️ [CLOUDINARY] Ficheiro guardado: ${publicUrl}`);
+    } catch (cloudErr) {
+      console.error('⚠️ Cloudinary upload falhou (sistema antigo continua ativo):', cloudErr.message);
+    }
+
+    // ── NEW SYSTEM B: upload to Gemini File API for rich AI prompts ───────
+    let geminiFileUri = null;
+    let geminiFileMimeType = null;
+    try {
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+      };
+      geminiFileMimeType = mimeTypes[ext] || 'application/octet-stream';
+
+      const geminiUpload = await ai.files.upload({
+        file: req.file.path,
+        config: { mimeType: geminiFileMimeType, displayName: nome || req.file.originalname },
+      });
+      geminiFileUri = geminiUpload.uri;
+      console.log(`🤖 [GEMINI FILE API] Ficheiro carregado: ${geminiFileUri}`);
+    } catch (geminiErr) {
+      console.error('⚠️ Gemini File API upload falhou (sistema antigo continua ativo):', geminiErr.message);
+    }
+
+    // ── Cleanup local temp file ───────────────────────────────────────────
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
-    if (!textoExtraido || textoExtraido.trim().length < 2) {
-      return res.status(400).json({ erro: 'Não foi possível ler os metadados do ficheiro enviado.' });
-    }
-
-    const novoMaterial = new Material({ 
-      nome: nome || req.file.originalname, 
-      tipo, 
-      disciplina: disciplina ? disciplina.toUpperCase() : 'GERAL', 
-      anoEscolar, 
-      professor: teacherId, 
-      conteudoTexto: textoExtraido 
+    // ── Save everything to MongoDB ────────────────────────────────────────
+    const novoMaterial = new Material({
+      nome: nome || req.file.originalname,
+      tipo,
+      disciplina: disciplina ? disciplina.toUpperCase() : 'GERAL',
+      anoEscolar,
+      professor: teacherId,
+      conteudoTexto: textoExtraido,
+      publicUrl,
+      cloudinaryPublicId,
+      geminiFileUri,
+      geminiFileMimeType,
     });
 
     await novoMaterial.save();
-    return res.status(201).json({ mensagem: 'Material registado e indexado com sucesso!', material: novoMaterial });
+    res.status(201).json({ mensagem: 'Material registado com sucesso!', material: novoMaterial });
 
   } catch (error) {
-    console.error('❌ Erro de processamento no Knowledge Vault:', error);
-    return res.status(500).json({ erro: 'Erro interno do servidor ao processar o ficheiro.' });
+    console.error('Erro no upload:', error);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ erro: 'Erro interno ao processar e guardar o ficheiro.' });
   }
 });
-
 
 app.delete('/api/materiais/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const material = await Material.findById(id).lean();
+
+    // Also delete from Cloudinary if we have the public_id
+    if (material && material.cloudinaryPublicId) {
+      try {
+        await cloudinary.uploader.destroy(material.cloudinaryPublicId, { resource_type: 'raw' });
+        console.log(`☁️ [CLOUDINARY] Ficheiro removido: ${material.cloudinaryPublicId}`);
+      } catch (cloudErr) {
+        console.error('⚠️ Falha ao remover do Cloudinary:', cloudErr.message);
+      }
+    }
+
     await Material.findByIdAndDelete(id);
     res.status(200).json({ mensagem: 'Material removido com sucesso!' });
   } catch (error) {
@@ -512,36 +554,13 @@ app.get('/api/professores/:teacherId/debunking/relatorio', async (req, res) => {
 
     if (!temaAlvo) return res.status(200).json({ temaAtivo: null, summary: { totalSucesso: 0, totalReforco: 0, taxa: 0 }, results: [] });
 
-    // 1. Puxa todas as tentativas, ordenadas da mais recente para a mais antiga
-    const todasTentativas = await TentativaDebunking.find({ professor: teacherId, disciplina: disciplina.toUpperCase(), anoEscolar, tema: temaAlvo }).populate('aluno', 'nome email').sort({ criadoEm: -1 }).lean();
+    const tentativas = await TentativaDebunking.find({ professor: teacherId, disciplina: disciplina.toUpperCase(), anoEscolar, tema: temaAlvo }).populate('aluno', 'nome email').sort({ criadoEm: -1 }).lean();
 
-    // 2. Filtra para manter apenas a tentativa mais recente de cada aluno
-    const tentativasUnicas = [];
-    const alunosVistos = new Set();
+    const totalSucesso = tentativas.filter(t => t.success).length;
+    const totalReforco = tentativas.filter(t => !t.success).length;
+    const taxaSucesso = tentativas.length > 0 ? Math.round((totalSucesso / tentativas.length) * 100) : 0;
 
-    for (const t of todasTentativas) {
-      const alunoId = t.aluno ? t.aluno._id.toString() : "anonimo";
-      if (!alunosVistos.has(alunoId)) {
-        alunosVistos.add(alunoId); // Marca este aluno como "já visto"
-        tentativasUnicas.push(t);  // Guarda a tentativa mais recente
-      }
-    }
-
-    // 3. Calcula as estatísticas baseadas APENAS nas tentativas únicas
-    const totalSucesso = tentativasUnicas.filter(t => t.success).length;
-    const totalReforco = tentativasUnicas.filter(t => !t.success).length;
-    const taxaSucesso = tentativasUnicas.length > 0 ? Math.round((totalSucesso / tentativasUnicas.length) * 100) : 0;
-
-    // 4. Formata para o frontend
-    const resultadosFormatados = tentativasUnicas.map(t => ({ 
-      id: t._id, 
-      student: t.aluno ? t.aluno.nome : "Estudante Anónimo", 
-      topic: t.tema, 
-      errorsFound: t.errorsFound, 
-      totalErrors: t.totalErrors, 
-      success: t.success 
-    }));
-
+    const resultadosFormatados = tentativas.map(t => ({ id: t._id, student: t.aluno ? t.aluno.nome : "Estudante Anónimo", topic: t.tema, errorsFound: t.errorsFound, totalErrors: t.totalErrors, success: t.success }));
 
     return res.status(200).json({ temaAtivo: temaAlvo, summary: { totalSucesso, totalReforco, taxa: taxaSucesso }, results: resultadosFormatados });
   } catch (error) {
@@ -590,7 +609,7 @@ app.post('/api/alunos/:studentId/debunking/submeter', async (req, res) => {
     const desafio = await DesafioDebunking.findById(desafioId).lean();
     if (!aluno || !desafio) return res.status(404).json({ erro: 'Dados não localizados.' });
 
-    let idsFalsosReais = desafio.tema.toUpperCase() === "DERIVADAS" ? [4, 5, 6] : [1, 3];
+    let idsFalsosReais = desafio.tema.toUpperCase() === "DERIVADAS" ? [4, 5, 6] : [1, 3, 4];
     const errosApanhados = respostasSelecionadas.filter(id => idsFalsosReais.includes(id)).length;
     const sucessoTotal = errosApanhados === idsFalsosReais.length;
 
@@ -604,169 +623,103 @@ app.post('/api/alunos/:studentId/debunking/submeter', async (req, res) => {
 });
 
 // =========================================================================
-// 🤖 ROTAS: BOT DE ESTUDO CONTEXTUAL (ÚNICAS E COM HISTÓRICO EM BASE DE DADOS)
+// 🤖 ROTAS: BOT DE ESTUDO CONTEXTUAL
 // =========================================================================
 
-app.post('/api/alunos/:studentId/conversas/criar', async (req, res) => {
+app.get('/api/alunos/:studentId/chat/historico', async (req, res) => {
   try {
     const { studentId } = req.params;
-    
-    const novaConversa = new Conversa({ 
-      aluno: studentId, 
-      titulo: 'Nova Conversa' 
-    });
-    await novaConversa.save();
-    
-    return res.status(201).json({ conversa: novaConversa });
-  } catch (error) {
-    console.error('❌ Erro ao criar conversa:', error);
-    return res.status(500).json({ erro: 'Erro ao criar uma nova sessão de chat.' });
-  }
-});
-
-
-app.get('/api/alunos/:studentId/conversas', async (req, res) => {
-  try {
-    const { studentId } = req.params;
-    
-    const lista = await Conversa.find({ aluno: studentId })
-      .sort({ criadoEm: -1 })
-      .lean();
-      
-    return res.status(200).json({ conversas: lista });
-  } catch (error) {
-    console.error('❌ Erro ao listar conversas:', error);
-    return res.status(500).json({ erro: 'Erro ao carregar o teu histórico de conversas.' });
-  }
-});
-
-app.get('/api/conversas/:conversaId/mensagens', async (req, res) => {
-  try {
-    const { conversaId } = req.params;
-    
-    const historico = await MensagemChat.find({ conversa: conversaId })
-      .sort({ criadoEm: 1 })
-      .lean();
-      
+    const historico = await MensagemChat.find({ aluno: studentId }).sort({ criadoEm: 1 }).lean();
     return res.status(200).json({ historico });
   } catch (error) {
-    console.error('❌ Erro ao carregar mensagens da thread:', error);
-    return res.status(500).json({ erro: 'Erro ao recuperar as mensagens desta conversa.' });
+    console.error('Erro ao carregar histórico de chat:', error);
+    return res.status(500).json({ erro: 'Erro ao carregar o histórico de mensagens.' });
   }
 });
 
-app.post('/api/conversas/:conversaId/mensagens', async (req, res) => {
+app.post('/api/alunos/:studentId/chat', async (req, res) => {
   try {
-    const { conversaId } = req.params;
-    const { message, mensagem } = req.body; 
-
-    // Unifica o input para suportar chamadas flexíveis do body (Postman/Frontend)
+    const { studentId } = req.params;
+    const { message, mensagem } = req.body;
     const perguntaTexto = mensagem || message;
 
     if (!perguntaTexto || !perguntaTexto.trim()) {
       return res.status(400).json({ erro: 'A mensagem enviada está vazia.' });
     }
 
-    // Localiza a sessão de conversa ativa para mapear o aluno
-    const sessao = await Conversa.findById(conversaId);
-    if (!sessao) return res.status(404).json({ erro: 'Conversa não localizada no sistema.' });
+    const aluno = await Aluno.findById(studentId).lean();
+    if (!aluno) return res.status(404).json({ erro: 'Estudante não localizado.' });
 
-    const aluno = await Aluno.findById(sessao.aluno).lean();
-    if (!aluno) return res.status(404).json({ erro: 'Estudante associado não encontrado.' });
+    const novaMsgUser = new MensagemChat({ aluno: studentId, sender: 'user', text: perguntaTexto.trim() });
+    await novaMsgUser.save();
 
-    // 🎯 GERADOR DE TÍTULOS INTELIGENTES (Apenas na 1ª mensagem do chat)
-    let mudouTitulo = false;
-    if (sessao.titulo === 'Nova Conversa') {
-      try {
-        const promptTitulo = `Gera um título super curto, direto e contextual (máximo 4 palavras) em Português de Portugal para uma conversa que começa com esta dúvida: "${perguntaTexto.trim()}". Não uses aspas, não ponhas ponto final e sê conciso como os históricos do Gemini (ex: "Erro CORS Express", "Derivadas de Matrizes", "Sintaxe de Loops").`;
-        
-        const resTitulo = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: promptTitulo
-        });
-        
-        if (resTitulo.text) {
-          sessao.titulo = resTitulo.text.trim().replace(/["']/g, ''); 
-          mudouTitulo = true;
-        }
-      } catch (errTitulo) {
-        // Fallback estável caso a API atinja limites de quota ao gerar o título
-        sessao.titulo = perguntaTexto.length > 25 ? perguntaTexto.substring(0, 22) + '...' : perguntaTexto;
-        mudouTitulo = true;
-      }
-      await sessao.save();
-    }
+    const disciplinasALunoMaiusculas = (aluno.disciplinas || []).map(d => d.toUpperCase());
+    const materiaisDisponiveis = await Material.find({
+      anoEscolar: aluno.anoEscolar,
+      disciplina: { $in: disciplinasALunoMaiusculas }
+    }).lean();
 
-    // 💾 Persiste a pergunta real enviada pelo utilizador nesta conversa
-    const msgUser = new MensagemChat({ conversa: conversaId, sender: 'user', text: perguntaTexto.trim() });
-    await msgUser.save();
-
-    // 🔍 PIPELINE RAG: Recolhe e agrupa o conteúdo dos ficheiros do ano escolar do aluno
-    const materiaisDisponiveis = await Material.find({ anoEscolar: aluno.anoEscolar }).lean();
+    // OLD SYSTEM: build text context (always runs as fallback)
     let contextoFicheiros = "";
+    let fontesUtilizadas = [];
+
     materiaisDisponiveis.forEach(mat => {
-      contextoFicheiros += `--- FICHEIRO: "${mat.nome}" | DISCIPLINA: ${mat.disciplina} ---\n${mat.conteudoTexto}\n`;
+      contextoFicheiros += `--- FICHEIRO: "${mat.nome}" | DISCIPLINA: ${mat.disciplina} ---\n`;
+      contextoFicheiros += `${mat.conteudoTexto}\n`;
+      contextoFicheiros += `--------------------------------------------------\n\n`;
+      fontesUtilizadas.push(mat.nome);
     });
 
-    // 🧠 SYSTEM INSTRUCTION ULTRA-REFINADA DO PORTAL DE ESTUDO
     const promptSistema = `
       És o Co-Piloto de Estudo Contextual do aluno ${aluno.nome}, que frequenta o ${aluno.anoEscolar}.
-      As disciplinas oficiais que ele frequenta são: ${(aluno.disciplinas || []).join(', ')}.
+      As disciplinas oficiais que ele frequenta são: ${aluno.disciplinas.join(', ')}.
 
-      Aqui tens o conteúdo textual dos materiais de estudo (PDFs, PPTXs e áudios transcritos) que o professor carregou:
+      Aqui tens o conteúdo textual extraído do Knowledge Vault (ficheiros que o professor carregou para este aluno):
       ${contextoFicheiros || "NENHUM DOCUMENTO CARREGADO ATÉ AO MOMENTO."}
 
-      REGRAS DE CONVERSAÇÃO E FLUXO CONTÍNUO:
-      1. Fluxo de Chat: Mantém uma conversa fluida, natural e contínua. NÃO repitas saudações (como "Olá", "Tudo bem?" ou o nome do aluno) a cada mensagem enviada se já estás a meio de uma conversa.
-      2. Linguagem Humana: É TERMINANTEMENTE PROIBIDO usar o termo "Knowledge Vault". Trata isso de forma natural como "materiais de estudo", "documentos" ou "ficheiros do professor". Responde em Português de Portugal.
-      3. Mapeamento Semântico: Associa inteligentemente conceitos (ex: "programação", "código", "loops") à respetiva cadeira (INFORMATICA).
-
-      DIRETRIZES DE CONTEXTO E EVITAÇÃO DE SPAM:
-      - CENÁRIO A (Sucesso Total): Se a resposta à dúvida estiver nos materiais fornecidos, responde com base neles e cita amigavelmente o nome do ficheiro.
-      
-      - CENÁRIO B (Cadeira com materiais, mas sem o tema específico): Se o aluno perguntar por um tema de uma cadeira dele (ex: "Camões" em PORTUGUES), mas nenhum ficheiro falar disso:
-        * REGRA DE QUANTIDADE: Se a cadeira tiver MAIS do que 3 ficheiros, NÃO os listes todos. Diz apenas algo como: "Tenho X documentos sobre essa cadeira, incluindo [Exemplo 1] e [Exemplo 2], mas nenhum aborda esse tema específico."
-        * Se tiver 3 ou menos, podes mencionar os nomes normalmente de forma fluida.
-      
-      - CENÁRIO C (Cadeira sem absolutamente nenhum material): Se o tema for de uma cadeira dele, mas a pasta dessa disciplina estiver vazia, avisa-o com naturalidade que o professor ainda não carregou documentos para a cadeira de [NOME_DA_CADEIRA] para este ano letivo.
-      
-      - CENÁRIO D (Pergunta Fora das Cadeiras / Vaga): Se for algo totalmente fora das suas disciplinas (ex: Biologia) e sem materiais, indica que não tens documentos sobre esse assunto para o ${aluno.anoEscolar}.
+      REGRAS DE RESPOSTA ESTRITAS:
+      1. Responde de forma clara, amigável e direta em Português de Portugal.
+      2. Mapeamento Semântico: Se o aluno perguntar sobre um conceito (ex: "programação", "código", "loops"), tu deves associar isso inteligentemente à disciplina correspondente (INFORMATICA).
+      3. Se existirem materiais sobre esse tema no Knowledge Vault acima, responde à dúvida baseando-te estritamente neles e cita amigavelmente o nome do ficheiro que usaste.
+      4. Se o aluno perguntar por um tema de uma cadeira que ele está inscrito (ex: MATEMATICA ou INFORMATICA) mas NÃO houver qualquer documento carregado ou informação útil sobre isso no texto fornecido, deves responder EXATAMENTE com esta estrutura:
+         "Olá! Analisei o Knowledge Vault, mas ainda não tenho os documentos para a cadeira de [NOME_DA_CADEIRA] referente ao [ANO_ESCOLAR]."
+         (Substitui [NOME_DA_CADEIRA] pela cadeira em maiúsculas e [ANO_ESCOLAR] por ${aluno.anoEscolar}).
+      5. Se for uma pergunta vaga ou sobre algo fora das suas cadeiras e não houver materiais, responde exatamente:
+         "Olá! Analisei o Knowledge Vault, mas ainda não tenho os documentos para tal referente ao ${aluno.anoEscolar}."
     `;
 
-    // 执行 EXECUÇÃO DA INTERROGAÇÃO MULTIMODAL NO GEMINI 2.5 FLASH
+    // NEW SYSTEM: attach real files to Gemini if available, fall back to text only
+    const filePartes = materiaisDisponiveis
+      .filter(mat => mat.geminiFileUri)
+      .map(mat => ({
+        fileData: { mimeType: mat.geminiFileMimeType, fileUri: mat.geminiFileUri }
+      }));
+
+    const hasFiles = filePartes.length > 0;
+    const contents = hasFiles
+      ? [...filePartes, { text: perguntaTexto.trim() }]
+      : perguntaTexto.trim();
+
+    console.log(`🤖 [GEMINI] A usar ${hasFiles ? `${filePartes.length} ficheiro(s) real(is)` : 'contexto de texto (sistema antigo)'} para o aluno ${aluno.nome}...`);
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: perguntaTexto.trim(),
+      contents,
       config: { systemInstruction: promptSistema }
     });
 
-    const respostaIA = response.text ? response.text.trim() : "Olá! Não consegui processar uma resposta estruturada com base nos teus materiais.";
+    const respostaIA = response.text ? response.text.trim() : `Olá! Analisei o Knowledge Vault, mas ainda não tenho os documentos para tal referente ao ${aluno.anoEscolar}.`;
 
-    // 💾 Persiste a resposta gerada contextualmente pela IA na base de dados
-    const msgAI = new MensagemChat({ conversa: conversaId, sender: 'ai', text: respostaIA });
-    await msgAI.save();
+    const novaMsgAI = new MensagemChat({ aluno: studentId, sender: 'ai', text: respostaIA });
+    await novaMsgAI.save();
 
-    // Devolve o payload limpo para o teu componente React ler
-    return res.status(200).json({ 
-      resposta: respostaIA, 
-      tituloAtualizado: mudouTitulo ? sessao.titulo : null 
-    });
+    return res.status(200).json({ resposta: respostaIA, fontes: fontesUtilizadas });
 
   } catch (error) {
-    console.error('❌ Erro na thread de mensagens:', error);
-
-    // 🛡️ INTERCEÇÃO DE SEGURANÇA: Captura estouros de quota da Google (Error 429) de forma limpa
-    if (error.status === 429 || (error.message && error.message.includes('quota')) || (error.message && error.message.includes('429'))) {
-      return res.status(200).json({ 
-        resposta: "⚠️ [Aviso de Quota] O motor do Gemini gratuito atingiu o limite de pedidos por minuto da Google. Por favor, aguarda cerca de 30 segundos e volta a clicar no botão de enviar! 🚀", 
-        tituloAtualizado: null 
-      });
-    }
-
-    return res.status(500).json({ erro: 'Erro interno do servidor ao processar o chat.' });
+    console.error('❌ Erro no processamento do Chat com Gemini:', error);
+    return res.status(500).json({ erro: 'Erro interno no motor do assistente virtual.' });
   }
 });
-
 
 // =========================================================================
 // ANTIGO ENDPOINT META 3 (COMPATIBILIDADE GERAL DE TESTE SIMPLES)
@@ -790,23 +743,19 @@ app.post('/api/duvidas', async (req, res) => {
   }
 });
 
-
 // =========================================================================
-// 📢 MÓDULO: CENTRO DE FEEDBACK (PAINEL DO STOR -> ECOSSISTEMA DO ALUNO)
+// 📢 MÓDULO: CENTRO DE FEEDBACK
 // =========================================================================
 
-// ROTA POST: O professor submete o feedback direcionado para a próxima aula de uma disciplina
 app.post('/api/professores/:teacherId/feedback/enviar', async (req, res) => {
   try {
     const { teacherId } = req.params;
     const { alunoId, disciplina, mensagem, diaSemana } = req.body;
 
-    // Validação de segurança básica dos dados do formulário da image_3cd3fe.png
     if (!alunoId || !disciplina || !mensagem || !mensagem.trim() || !diaSemana) {
       return res.status(400).json({ erro: 'Campos obrigatórios em falta (Aluno, Disciplina, Mensagem ou Dia da Aula).' });
     }
 
-    // Calcula a data exata da próxima aula (ex: "2026-06-29") para servir de deadline ao feedback
     const dataAulaAlvo = calcularDataProximaAula(diaSemana);
 
     const novoFeedback = new FeedbackProfessor({
@@ -818,22 +767,20 @@ app.post('/api/professores/:teacherId/feedback/enviar', async (req, res) => {
     });
 
     await novoFeedback.save();
-    console.log(`📢 [FEEDBACK CRUCIAL] Stor ${teacherId} enviou nota pedagógica a ${alunoId} para a aula de ${dataAulaAlvo}`);
+    console.log(`📢 [FEEDBACK] Stor ${teacherId} enviou nota a ${alunoId} para ${dataAulaAlvo}`);
 
     return res.status(201).json({ mensagem: 'Feedback pedagógico enviado com sucesso!', feedback: novoFeedback });
   } catch (error) {
-    console.error('❌ Erro ao submeter feedback do professor:', error);
+    console.error('❌ Erro ao submeter feedback:', error);
     return res.status(500).json({ erro: 'Erro interno ao processar e salvar o feedback.' });
   }
 });
 
-// ROTA GET: O aluno vai buscar todos os conselhos deixados pelos seus professores para a próxima aula
 app.get('/api/alunos/:studentId/feedback/listar', async (req, res) => {
   try {
     const { studentId } = req.params;
     const hoje = new Date().toISOString().split('T')[0];
 
-    // Procura os feedbacks válidos cujo dia da aula associado ainda seja igual ou superior à data de hoje
     const feedbacksAtivos = await FeedbackProfessor.find({
       aluno: studentId,
       dataAula: { $gte: hoje }
@@ -844,7 +791,7 @@ app.get('/api/alunos/:studentId/feedback/listar', async (req, res) => {
 
     return res.status(200).json({ feedbacks: feedbacksAtivos });
   } catch (error) {
-    console.error('❌ Erro ao listar feedbacks para o aluno:', error);
+    console.error('❌ Erro ao listar feedbacks:', error);
     return res.status(500).json({ erro: 'Erro ao carregar o seu dossiê de feedbacks.' });
   }
 });
