@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { User, Check, ArrowRight } from "lucide-react";
 
@@ -9,9 +9,16 @@ export function StudentSetup() {
   const [grade, setGrade] = useState("");
   const [school, setSchool] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [schools, setSchools] = useState<string[]>([]);
   
-  // NOVO ESTADO: Guarda a turma atribuída para ativar a tela de sucesso bonita
   const [assignedTurma, setAssignedTurma] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/escolas")
+      .then(res => res.json())
+      .then(data => setSchools(data.escolas || []))
+      .catch(() => setSchools([]));
+  }, []);
 
   const availableSubjects = [
     { id: "matematica", name: "Matemática", icon: "∑" },
@@ -68,7 +75,6 @@ export function StudentSetup() {
         return;
       }
 
-      // Em vez de dar alert(), guardamos a turma sorteada no estado!
       setAssignedTurma(data.aluno.turma);
 
     } catch (err) {
@@ -77,9 +83,6 @@ export function StudentSetup() {
     }
   };
 
-  // =========================================================================
-  // VISTA DE SUCESSO: Apresentada de forma fluida assim que a BD atribui a turma
-  // =========================================================================
   if (assignedTurma) {
     return (
       <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-6 animate-fade-in">
@@ -108,9 +111,6 @@ export function StudentSetup() {
     );
   }
 
-  // =========================================================================
-  // VISTA DO FORMULÁRIO ORIGINAL (Sem alterações visuais)
-  // =========================================================================
   return (
     <div className="min-h-screen bg-[#f5f5f7] p-6">
       <div className="max-w-4xl mx-auto">
@@ -155,13 +155,21 @@ export function StudentSetup() {
 
             <div>
               <label className="text-[#1e3a5f] block mb-2">Escola / Instituição</label>
-              <input
-                type="text"
+              <select
                 value={school}
                 onChange={(e) => setSchool(e.target.value)}
-                className="w-full px-4 py-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] placeholder-[#717182] focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
-                placeholder="Ex: Escola Secundária de Lisboa"
-              />
+                className="w-full px-4 py-3 bg-[#f3f3f5] border border-[#e9ebef] rounded-lg text-[#1e3a5f] focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
+              >
+                <option value="">Selecione a escola</option>
+                {schools.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              {schools.length === 0 && (
+                <p className="text-xs text-[#717182] mt-1">
+                  Nenhuma escola disponível — um professor tem de se registar primeiro.
+                </p>
+              )}
             </div>
           </div>
 
