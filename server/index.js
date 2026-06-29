@@ -512,13 +512,36 @@ app.get('/api/professores/:teacherId/debunking/relatorio', async (req, res) => {
 
     if (!temaAlvo) return res.status(200).json({ temaAtivo: null, summary: { totalSucesso: 0, totalReforco: 0, taxa: 0 }, results: [] });
 
-    const tentativas = await TentativaDebunking.find({ professor: teacherId, disciplina: disciplina.toUpperCase(), anoEscolar, tema: temaAlvo }).populate('aluno', 'nome email').sort({ criadoEm: -1 }).lean();
+    // 1. Puxa todas as tentativas, ordenadas da mais recente para a mais antiga
+    const todasTentativas = await TentativaDebunking.find({ professor: teacherId, disciplina: disciplina.toUpperCase(), anoEscolar, tema: temaAlvo }).populate('aluno', 'nome email').sort({ criadoEm: -1 }).lean();
 
-    const totalSucesso = tentativas.filter(t => t.success).length;
-    const totalReforco = tentativas.filter(t => !t.success).length;
-    const taxaSucesso = tentativas.length > 0 ? Math.round((totalSucesso / tentativas.length) * 100) : 0;
+    // 2. Filtra para manter apenas a tentativa mais recente de cada aluno
+    const tentativasUnicas = [];
+    const alunosVistos = new Set();
 
-    const resultadosFormatados = tentativas.map(t => ({ id: t._id, student: t.aluno ? t.aluno.nome : "Estudante Anónimo", topic: t.tema, errorsFound: t.errorsFound, totalErrors: t.totalErrors, success: t.success }));
+    for (const t of todasTentativas) {
+      const alunoId = t.aluno ? t.aluno._id.toString() : "anonimo";
+      if (!alunosVistos.has(alunoId)) {
+        alunosVistos.add(alunoId); // Marca este aluno como "já visto"
+        tentativasUnicas.push(t);  // Guarda a tentativa mais recente
+      }
+    }
+
+    // 3. Calcula as estatísticas baseadas APENAS nas tentativas únicas
+    const totalSucesso = tentativasUnicas.filter(t => t.success).length;
+    const totalReforco = tentativasUnicas.filter(t => !t.success).length;
+    const taxaSucesso = tentativasUnicas.length > 0 ? Math.round((totalSucesso / tentativasUnicas.length) * 100) : 0;
+
+    // 4. Formata para o frontend
+    const resultadosFormatados = tentativasUnicas.map(t => ({ 
+      id: t._id, 
+      student: t.aluno ? t.aluno.nome : "Estudante Anónimo", 
+      topic: t.tema, 
+      errorsFound: t.errorsFound, 
+      totalErrors: t.totalErrors, 
+      success: t.success 
+    }));
+
 
     return res.status(200).json({ temaAtivo: temaAlvo, summary: { totalSucesso, totalReforco, taxa: taxaSucesso }, results: resultadosFormatados });
   } catch (error) {
