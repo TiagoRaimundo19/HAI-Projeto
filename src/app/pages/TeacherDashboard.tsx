@@ -407,7 +407,7 @@ function VaultView() {
           <p className="text-[#1e3a5f] mb-2 font-medium">
             {uploading ? `🤖 A extrair texto para o ${selectedAnoEscolar}...` : isDragging ? "Podes largar o ficheiro aqui! 🚀" : `Arraste ficheiros para ${selectedDisciplina.toUpperCase()} (${selectedAnoEscolar})`}
           </p>
-          <p className="text-sm text-[#717182]">Formatos suportados: PDF, PPTX</p>
+          <p className="text-sm text-[#717182]">Formatos suportados: PDF, PPTX, MP3, WAV</p>
         </div>
       </div>
 
