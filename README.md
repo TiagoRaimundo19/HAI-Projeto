@@ -2,7 +2,7 @@ Conteúdo ficheiro .env (a criar na pasta base do projeto):
 
 MONGODB_URI=mongodb+srv://tiagofmrai_db_user:Fotografiaverde2004@hai.ku98xo0.mongodb.net/hai_db?appName=HAI
 
-GEMINI_API_KEY=AQ.Ab8RN6J16p7Qs1By-4v0jCoKcVPXCUdmoIZrTZWTPCRljeaR_Q
+GEMINI_API_KEY=AQ.Ab8RN6LXw_4QQ5eEPZ806xwWqMlEwKoiA8AuoxMvHKPwtOOXiA
 
 CLOUDINARY_CLOUD_NAME=drr9npfru
 CLOUDINARY_API_KEY=341282693598994
